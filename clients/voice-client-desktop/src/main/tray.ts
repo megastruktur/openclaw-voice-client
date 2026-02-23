@@ -2,23 +2,13 @@
  * System tray management
  */
 
-import { Tray, Menu, nativeImage, BrowserWindow, app } from 'electron'
+import { app, Tray, Menu, nativeImage, BrowserWindow } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let tray: Tray | null = null
-
-/**
- * Get tray icon path (handles both dev and packaged app)
- */
-function getTrayIconPath(): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'assets', 'tray-icon.png')
-  }
-  return path.join(__dirname, '../../assets/tray-icon.png')
-}
 
 /**
  * Create system tray icon
@@ -28,58 +18,56 @@ export function createTray(
   onShowSettings: () => void,
   onQuit: () => void
 ): Tray {
-  try {
-    // Create tray icon (use a placeholder for now)
-    const iconPath = getTrayIconPath()
-    const icon = nativeImage.createFromPath(iconPath)
+  // Resolve icon path: packaged app uses resourcesPath, dev uses relative path
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets', 'tray-icon.png')
+    : path.join(__dirname, '../../assets/tray-icon.png')
 
-    if (icon.isEmpty()) {
-      console.warn('Tray icon not found at:', iconPath)
-    }
-
-    tray = new Tray(icon.resize({ width: 16, height: 16 }))
-
-    tray.setToolTip('OpenClaw Voice Client')
-
-    // On macOS, ignore double-click events
-    if (process.platform === 'darwin') {
-      tray.setIgnoreDoubleClickEvents(true)
-    }
-
-    // Build context menu
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: 'Open Voice Client',
-        click: onShowPopup,
-      },
-      {
-        type: 'separator',
-      },
-      {
-        label: 'Settings',
-        click: onShowSettings,
-      },
-      {
-        type: 'separator',
-      },
-      {
-        label: 'Quit',
-        click: onQuit,
-      },
-    ])
-
-    tray.setContextMenu(contextMenu)
-
-    // Click on tray icon shows popup
-    tray.on('click', () => {
-      onShowPopup()
-    })
-
-    return tray
-  } catch (error) {
-    console.error('Error creating tray icon:', error)
-    throw error
+  let icon = nativeImage.createFromPath(iconPath)
+  if (icon.isEmpty()) {
+    // Fallback: 16x16 transparent placeholder so app doesn't crash
+    icon = nativeImage.createEmpty()
   }
+
+  tray = new Tray(icon.resize({ width: 16, height: 16 }))
+
+  // macOS: ignore double click, single click opens popup
+  if (process.platform === 'darwin') {
+    tray.setIgnoreDoubleClickEvents(true)
+  }
+
+  tray.setToolTip('OpenClaw Voice Client')
+
+  // Build context menu
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open Voice Client',
+      click: onShowPopup,
+    },
+    {
+      type: 'separator',
+    },
+    {
+      label: 'Settings',
+      click: onShowSettings,
+    },
+    {
+      type: 'separator',
+    },
+    {
+      label: 'Quit',
+      click: onQuit,
+    },
+  ])
+
+  tray.setContextMenu(contextMenu)
+
+  // Click on tray icon shows popup
+  tray.on('click', () => {
+    onShowPopup()
+  })
+
+  return tray
 }
 
 /**
@@ -93,9 +81,9 @@ export function showPopupNearTray(window: BrowserWindow, tray: Tray): void {
   let x = Math.round(bounds.x + bounds.width / 2 - windowBounds.width / 2)
   let y = Math.round(bounds.y + bounds.height + 4)
 
-  // Adjust if goes off screen
+  // On macOS the menu bar is at the top, so position below the tray icon
   if (process.platform === 'darwin') {
-    y = Math.round(bounds.y - windowBounds.height - 4)
+    y = Math.round(bounds.y + bounds.height + 4)
   }
 
   window.setPosition(x, y, false)

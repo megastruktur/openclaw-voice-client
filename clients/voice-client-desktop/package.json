@@ -67,7 +67,13 @@
       "owner": "megastruktur",
       "repo": "openclaw-voice-client",
       "releaseType": "release"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": "assets/"
+      }
+    ]
   },
   "homepage": "https://github.com/megastruktur/openclaw-voice-client",
   "author": {

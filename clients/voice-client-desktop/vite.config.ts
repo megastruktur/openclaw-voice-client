@@ -12,6 +12,15 @@ export default defineConfig({
       },
       preload: {
         input: path.join(__dirname, 'src/main/preload.ts'),
+        vite: {
+          build: {
+            rollupOptions: {
+              output: {
+                entryFileNames: '[name].js',
+              },
+            },
+          },
+        },
       },
       renderer: {},
     }),

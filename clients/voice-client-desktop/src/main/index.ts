@@ -22,7 +22,7 @@ app.disableHardwareAcceleration()
 // │ ├─┬ dist-electron
 // │ │ ├── main.js
 // │ │ └── preload.js
-process.env.DIST = path.join(__dirname, '../..')
+process.env.DIST = path.join(__dirname, '..', 'dist')
 process.env.VITE_PUBLIC = app.isPackaged
   ? process.env.DIST
   : path.join(process.env.DIST, '../public')
@@ -77,7 +77,7 @@ function createPopupWindow(): BrowserWindow {
   if (VITE_DEV_SERVER_URL) {
     popupWindow.loadURL(`${VITE_DEV_SERVER_URL}/src/renderer/popup/index.html`)
   } else {
-    popupWindow.loadFile(path.join(process.env.DIST!, 'popup/index.html'))
+    popupWindow.loadFile(path.join(process.env.DIST!, 'src/renderer/popup/index.html'))
   }
 
   return popupWindow
@@ -113,7 +113,7 @@ function createSettingsWindow(): BrowserWindow {
       `${VITE_DEV_SERVER_URL}/src/renderer/settings/index.html`
     )
   } else {
-    settingsWindow.loadFile(path.join(process.env.DIST!, 'settings/index.html'))
+    settingsWindow.loadFile(path.join(process.env.DIST!, 'src/renderer/settings/index.html'))
   }
 
   return settingsWindow

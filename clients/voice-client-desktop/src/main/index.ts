@@ -4,6 +4,7 @@
 
 import { app, BrowserWindow, globalShortcut } from 'electron'
 import path from 'node:path'
+import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { createTray, showPopupNearTray, destroyTray } from './tray'
 import { registerIpcHandlers } from './ipc'
@@ -33,6 +34,20 @@ let tray: ReturnType<typeof createTray> | null = null
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
 /**
+ * Get preload script path (handles both .js and .mjs extensions)
+ */
+function getPreloadPath(): string {
+  const preloadMjs = path.join(__dirname, 'preload.mjs')
+  const preloadJs = path.join(__dirname, 'preload.js')
+
+  // Check which file exists (vite-plugin-electron can output .mjs)
+  if (fs.existsSync(preloadMjs)) {
+    return preloadMjs
+  }
+  return preloadJs
+}
+
+/**
  * Create popup window
  */
 function createPopupWindow(): BrowserWindow {
@@ -45,7 +60,7 @@ function createPopupWindow(): BrowserWindow {
     skipTaskbar: true,
     alwaysOnTop: true,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -79,7 +94,7 @@ function createSettingsWindow(): BrowserWindow {
     resizable: false,
     title: 'OpenClaw Voice - Settings',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -160,13 +175,28 @@ function registerHotkeys(): void {
 
 // App lifecycle
 app.whenReady().then(() => {
+  // Hide dock icon on macOS (tray-only app)
+  if (process.platform === 'darwin') {
+    try {
+      app.dock.hide()
+    } catch (error) {
+      console.error('Failed to hide dock icon:', error)
+    }
+  }
+
   // Register IPC handlers
   registerIpcHandlers({
     onOpenSettings: showSettings,
   })
 
-  // Create tray icon
-  tray = createTray(showPopup, showSettings, quitApp)
+  // Create tray icon with error handling
+  try {
+    tray = createTray(showPopup, showSettings, quitApp)
+  } catch (error) {
+    console.error('Failed to create tray icon:', error)
+    app.quit()
+    return
+  }
 
   // Create popup window (hidden initially)
   createPopupWindow()
@@ -189,6 +219,7 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   // On macOS, re-create window when dock icon is clicked
+  // (though dock should be hidden for tray-only app)
   if (BrowserWindow.getAllWindows().length === 0) {
     createPopupWindow()
   }

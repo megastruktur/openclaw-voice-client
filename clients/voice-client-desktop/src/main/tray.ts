@@ -2,13 +2,23 @@
  * System tray management
  */
 
-import { Tray, Menu, nativeImage, BrowserWindow } from 'electron'
+import { Tray, Menu, nativeImage, BrowserWindow, app } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let tray: Tray | null = null
+
+/**
+ * Get tray icon path (handles both dev and packaged app)
+ */
+function getTrayIconPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'assets', 'tray-icon.png')
+  }
+  return path.join(__dirname, '../../assets/tray-icon.png')
+}
 
 /**
  * Create system tray icon
@@ -18,44 +28,58 @@ export function createTray(
   onShowSettings: () => void,
   onQuit: () => void
 ): Tray {
-  // Create tray icon (use a placeholder for now)
-  const icon = nativeImage.createFromPath(
-    path.join(__dirname, '../../assets/tray-icon.png')
-  )
-  tray = new Tray(icon.resize({ width: 16, height: 16 }))
+  try {
+    // Create tray icon (use a placeholder for now)
+    const iconPath = getTrayIconPath()
+    const icon = nativeImage.createFromPath(iconPath)
 
-  tray.setToolTip('OpenClaw Voice Client')
+    if (icon.isEmpty()) {
+      console.warn('Tray icon not found at:', iconPath)
+    }
 
-  // Build context menu
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Open Voice Client',
-      click: onShowPopup,
-    },
-    {
-      type: 'separator',
-    },
-    {
-      label: 'Settings',
-      click: onShowSettings,
-    },
-    {
-      type: 'separator',
-    },
-    {
-      label: 'Quit',
-      click: onQuit,
-    },
-  ])
+    tray = new Tray(icon.resize({ width: 16, height: 16 }))
 
-  tray.setContextMenu(contextMenu)
+    tray.setToolTip('OpenClaw Voice Client')
 
-  // Click on tray icon shows popup
-  tray.on('click', () => {
-    onShowPopup()
-  })
+    // On macOS, ignore double-click events
+    if (process.platform === 'darwin') {
+      tray.setIgnoreDoubleClickEvents(true)
+    }
 
-  return tray
+    // Build context menu
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Open Voice Client',
+        click: onShowPopup,
+      },
+      {
+        type: 'separator',
+      },
+      {
+        label: 'Settings',
+        click: onShowSettings,
+      },
+      {
+        type: 'separator',
+      },
+      {
+        label: 'Quit',
+        click: onQuit,
+      },
+    ])
+
+    tray.setContextMenu(contextMenu)
+
+    // Click on tray icon shows popup
+    tray.on('click', () => {
+      onShowPopup()
+    })
+
+    return tray
+  } catch (error) {
+    console.error('Error creating tray icon:', error)
+    throw error
+  }
 }
 
 /**

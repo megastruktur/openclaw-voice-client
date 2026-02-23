@@ -1,0 +1,61 @@
+{
+  "id": "voice-client",
+  "channels": ["voice-client"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true
+      },
+      "sonioxApiKey": {
+        "type": "string",
+        "description": "API key for Soniox speech-to-text service"
+      },
+      "serve": {
+        "type": "object",
+        "properties": {
+          "port": {
+            "type": "integer",
+            "default": 18790,
+            "description": "HTTP port for voice client endpoints"
+          },
+          "path": {
+            "type": "string",
+            "default": "/voice-client",
+            "description": "Base path for voice client endpoints"
+          }
+        }
+      },
+      "profiles": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of allowed profile names"
+          }
+        }
+      }
+    },
+    "required": ["sonioxApiKey"]
+  },
+  "uiHints": {
+    "sonioxApiKey": {
+      "label": "Soniox API Key",
+      "sensitive": true
+    },
+    "serve.port": {
+      "label": "HTTP Port"
+    },
+    "serve.path": {
+      "label": "Base Path"
+    },
+    "profiles.allowed": {
+      "label": "Allowed Profiles"
+    }
+  }
+}

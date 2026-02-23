@@ -1,0 +1,27 @@
+node_modules/
+dist/
+dist-electron/
+release/
+*.AppImage
+*.dmg
+*.exe
+*.deb
+*.rpm
+.env
+.env.*
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Build state
+.build-state.json
+
+# Logs
+*.log

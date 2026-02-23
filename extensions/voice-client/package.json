@@ -1,0 +1,24 @@
+{
+  "name": "@openclaw/voice-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenClaw Voice Client channel plugin",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@soniox/node": "^1.1.1"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*",
+    "typescript": "^5.0.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

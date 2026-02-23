@@ -2,8 +2,12 @@
   "name": "openclaw-voice-client-desktop",
   "version": "0.1.0",
   "description": "OpenClaw Voice Client Desktop Application",
-  "main": "dist-electron/index.js",
+  "main": "dist-electron/main/index.js",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/megastruktur/openclaw-voice-client"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
@@ -46,7 +50,8 @@
     },
     "win": {
       "target": [
-        "dir"
+        "nsis",
+        "portable"
       ],
       "signingHashAlgorithms": [],
       "sign": null
@@ -58,7 +63,7 @@
       "category": "Utility"
     }
   },
-  "homepage": "https://github.com/openclaw/openclaw-voice-client",
+  "homepage": "https://github.com/megastruktur/openclaw-voice-client",
   "author": {
     "name": "OpenClaw",
     "email": "openclaw@localhost"

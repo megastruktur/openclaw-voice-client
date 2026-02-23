@@ -44,6 +44,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build -- --${{ matrix.platform }}
 
+      - name: List release directory
+        working-directory: clients/voice-client-desktop
+        run: |
+          echo "Contents of release directory:"
+          ls -lah release/ || echo "Release directory not found"
+        shell: bash
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

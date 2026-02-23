@@ -194,3 +194,13 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.footer button.quit-button {
+  border-color: #6b7280;
+  color: #9ca3af;
+}
+
+.footer button.quit-button:hover {
+  background: #6b7280;
+  color: #1a1a1a;
+}

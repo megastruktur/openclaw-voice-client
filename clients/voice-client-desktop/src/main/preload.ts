@@ -1,26 +1,37 @@
-/**
- * Preload script - exposes safe IPC methods to renderer
- */
-
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings } from '../shared/types'
+import type { AppSettings, SessionResponse, TranscriptionResponse } from '../shared/types'
 
-// Expose protected methods to renderer
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Settings
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   saveSettings: (settings: AppSettings) =>
     ipcRenderer.invoke('settings:save', settings),
 
-  // Gateway connection test
   testConnection: (url: string) => ipcRenderer.invoke('gateway:test', url),
 
-  // Window controls
+  createSession: (baseUrl: string, profileName: string) =>
+    ipcRenderer.invoke('api:create-session', baseUrl, profileName),
+
+  sendAudio: (
+    baseUrl: string,
+    sessionId: string,
+    profileName: string,
+    sessionKey: string | undefined,
+    audioData: Uint8Array
+  ) =>
+    ipcRenderer.invoke(
+      'api:send-audio',
+      baseUrl,
+      sessionId,
+      profileName,
+      sessionKey,
+      audioData
+    ),
+
   closeWindow: () => ipcRenderer.send('window:close'),
   openSettings: () => ipcRenderer.send('window:open-settings'),
+  quit: () => ipcRenderer.send('app:quit'),
 })
 
-// Type definitions for window.electronAPI
 export interface ElectronAPI {
   loadSettings: () => Promise<AppSettings>
   saveSettings: (settings: AppSettings) => Promise<{ success: boolean }>
@@ -29,8 +40,17 @@ export interface ElectronAPI {
     status?: number
     error?: string
   }>
+  createSession: (baseUrl: string, profileName: string) => Promise<SessionResponse>
+  sendAudio: (
+    baseUrl: string,
+    sessionId: string,
+    profileName: string,
+    sessionKey: string | undefined,
+    audioData: Uint8Array
+  ) => Promise<TranscriptionResponse>
   closeWindow: () => void
   openSettings: () => void
+  quit: () => void
 }
 
 declare global {

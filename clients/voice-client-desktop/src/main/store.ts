@@ -12,6 +12,7 @@ interface StoreSchema {
   profileName: string
   microphoneDeviceId?: string
   pushToTalkHotkey?: string
+  sessionKey?: string
 }
 
 const store = new Store<StoreSchema>({
@@ -43,6 +44,7 @@ export function loadSettings(): AppSettings {
     token,
     profileName: store.get('profileName'),
     microphoneDeviceId: store.get('microphoneDeviceId'),
+    sessionKey: store.get('sessionKey'),
     pushToTalkHotkey: store.get('pushToTalkHotkey'),
   }
 }
@@ -66,11 +68,15 @@ export function saveSettings(settings: AppSettings): void {
   store.set('encryptedToken', encryptedToken)
   store.set('profileName', settings.profileName)
 
-  if (settings.microphoneDeviceId) {
+  if (settings.sessionKey !== undefined) {
+    store.set('sessionKey', settings.sessionKey)
+  }
+
+  if (settings.microphoneDeviceId !== undefined) {
     store.set('microphoneDeviceId', settings.microphoneDeviceId)
   }
 
-  if (settings.pushToTalkHotkey) {
+  if (settings.pushToTalkHotkey !== undefined) {
     store.set('pushToTalkHotkey', settings.pushToTalkHotkey)
   }
 }

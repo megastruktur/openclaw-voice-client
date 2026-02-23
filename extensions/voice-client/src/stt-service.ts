@@ -2,15 +2,28 @@
  * Speech-to-Text Service (Soniox Integration)
  *
  * This module handles audio transcription using the Soniox API.
- * Supports both batch and streaming transcription.
+ * Uses the current @soniox/node SDK (SonioxNodeClient).
  */
 
-import { SonioxSpeechClient } from "@soniox/node";
+import { SonioxNodeClient } from "@soniox/node";
 import type { TranscriptionRequest, TranscriptionResponse } from "./types.js";
+
+
+let cachedClient: SonioxNodeClient | null = null;
+let cachedApiKey: string | null = null;
+
+function getClient(apiKey: string): SonioxNodeClient {
+  if (cachedClient && cachedApiKey === apiKey) {
+    return cachedClient;
+  }
+  cachedClient = new SonioxNodeClient({ api_key: apiKey });
+  cachedApiKey = apiKey;
+  return cachedClient;
+}
 
 /**
  * Transcribe audio buffer to text using Soniox API
- * Uses the async (non-streaming) transcription endpoint
+ * Uses the async transcription endpoint with automatic upload, wait, and cleanup.
  */
 export async function transcribeAudio(
   request: TranscriptionRequest,
@@ -21,21 +34,26 @@ export async function transcribeAudio(
   }
 
   try {
-    // Initialize Soniox client
-    const client = new SonioxSpeechClient({ apiKey });
+    const client = getClient(apiKey);
 
-    // Transcribe audio using async API
-    // The SDK expects audio as Buffer or Uint8Array
-    const result = await client.transcribeAsync({
-      audio: request.audioBuffer,
-      model: "en_v2", // English model (can be configured)
-      enableProfanityFilter: false,
-      enableSpeakerDiarization: false,
+
+    const transcription = await client.stt.transcribe({
+      model: "stt-async-v4",
+      file: request.audioBuffer,
+      wait: true,
+      cleanup: ["file", "transcription"],
     });
 
-    // Extract text from result
-    const text = result.words?.map((w) => w.text).join(" ") || "";
-    const confidence = result.words?.[0]?.confidence || 0.0;
+
+    const transcript = await transcription.getTranscript();
+    const text = transcript?.text ?? "";
+
+
+    const tokens = transcript?.tokens ?? [];
+    const confidence =
+      tokens.length > 0
+        ? tokens.reduce((sum: number, t: { confidence?: number }) => sum + (t.confidence ?? 0), 0) / tokens.length
+        : 0.0;
 
     console.log("STT service: transcription complete", {
       profile: request.profileName,

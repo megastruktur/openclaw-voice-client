@@ -1,16 +1,10 @@
-/**
- * Popup window main component
- */
-
 import React, { useState, useEffect } from 'react'
-import { VoiceClientAPI } from '../../shared/api'
 import { useAudio } from './useAudio'
 import type { AppSettings, ConversationExchange } from '../../shared/types'
 import './App.css'
 
 export function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null)
-  const [api, setApi] = useState<VoiceClientAPI | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
   const [lastExchange, setLastExchange] = useState<ConversationExchange | null>(
@@ -22,48 +16,41 @@ export function App() {
   const { isRecording, startRecording, stopRecording, error: audioError } =
     useAudio()
 
-  // Load settings on mount
   useEffect(() => {
     window.electronAPI.loadSettings().then((loadedSettings) => {
       setSettings(loadedSettings)
 
       if (loadedSettings.gatewayUrl && loadedSettings.profileName) {
-        const apiClient = new VoiceClientAPI(
-          loadedSettings.gatewayUrl,
-          loadedSettings.profileName,
-          loadedSettings.sessionKey
-        )
-        setApi(apiClient)
-
-        // Test connection
-        apiClient.testConnection().then(setConnected)
+        window.electronAPI
+          .testConnection(loadedSettings.gatewayUrl)
+          .then((result) => setConnected(result.success))
       }
     })
   }, [])
 
-  // Create new session
   const handleNewSession = async () => {
-    if (!api) return
+    if (!settings?.gatewayUrl || !settings?.profileName) return
 
     try {
       setError(null)
-      const response = await api.createSession()
+      const response = await window.electronAPI.createSession(
+        settings.gatewayUrl,
+        settings.profileName
+      )
       setSessionId(response.sessionId)
       setLastExchange(null)
-      console.log('New session created:', response.sessionId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create session')
     }
   }
 
-  // Handle push-to-talk button
   const handleMouseDown = () => {
     if (!connected || !sessionId || isProcessing) return
     startRecording()
   }
 
   const handleMouseUp = async () => {
-    if (!isRecording || !api || !sessionId) return
+    if (!isRecording || !settings || !sessionId) return
 
     const audioBlob = await stopRecording()
     if (!audioBlob) return
@@ -72,7 +59,14 @@ export function App() {
       setIsProcessing(true)
       setError(null)
 
-      const response = await api.sendAudio(sessionId, audioBlob)
+      const audioBytes = new Uint8Array(await audioBlob.arrayBuffer())
+      const response = await window.electronAPI.sendAudio(
+        settings.gatewayUrl,
+        sessionId,
+        settings.profileName,
+        settings.sessionKey,
+        audioBytes
+      )
 
       setLastExchange({
         userText: response.transcription.text,
@@ -86,11 +80,6 @@ export function App() {
     }
   }
 
-  // Open settings window
-  const openSettings = () => {
-    window.electronAPI.openSettings()
-  }
-
   return (
     <div className="app">
       <div className="header">
@@ -101,7 +90,6 @@ export function App() {
       </div>
 
       <div className="content">
-        {/* Microphone button */}
         <div className="mic-container">
           <button
             className={`mic-button ${isRecording ? 'recording' : ''} ${
@@ -122,7 +110,6 @@ export function App() {
           </button>
         </div>
 
-        {/* Last exchange */}
         {lastExchange && (
           <div className="exchange">
             <div className="exchange-user">
@@ -134,12 +121,10 @@ export function App() {
           </div>
         )}
 
-        {/* Error message */}
         {(error || audioError) && (
           <div className="error">{error || audioError}</div>
         )}
 
-        {/* Session info */}
         {sessionId && (
           <div className="session-info">
             Session: {sessionId.substring(0, 12)}...
@@ -151,7 +136,15 @@ export function App() {
         <button onClick={handleNewSession} disabled={!connected}>
           New Session
         </button>
-        <button onClick={openSettings}>Settings</button>
+        <button onClick={() => window.electronAPI.openSettings()}>
+          Settings
+        </button>
+        <button
+          className="quit-button"
+          onClick={() => window.electronAPI.quit()}
+        >
+          Quit
+        </button>
       </div>
     </div>
   )

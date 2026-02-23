@@ -30,12 +30,15 @@ function parseConfig(rawConfig: unknown): VoiceClientConfig {
   // Parse profiles config with defaults
   const profilesConfig = (config.profiles as Record<string, unknown>) || {};
   const allowed = Array.isArray(profilesConfig.allowed) ? profilesConfig.allowed : [];
-
+  const sessionKeys =
+    profilesConfig.sessionKeys && typeof profilesConfig.sessionKeys === "object"
+      ? (profilesConfig.sessionKeys as Record<string, string>)
+      : undefined;
   return {
     enabled: typeof config.enabled === "boolean" ? config.enabled : true,
     sonioxApiKey: config.sonioxApiKey,
     serve: { port, path, bind },
-    profiles: { allowed },
+    profiles: { allowed, sessionKeys },
   };
 }
 

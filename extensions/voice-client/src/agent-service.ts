@@ -5,7 +5,9 @@
  * Similar to voice-call's response-generator but adapted for voice-client.
  */
 
-import crypto from "node:crypto";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { VoiceClientConfig, SessionMessage } from "./types.js";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 
@@ -77,6 +79,57 @@ type CoreAgentDeps = {
 let coreDepsCache: CoreAgentDeps | null = null;
 
 /**
+ * Walk up from `start` looking for a directory whose package.json has `name === pkgName`.
+ */
+function findPackageRoot(start: string, pkgName: string): string | null {
+  let dir = path.resolve(start);
+  const { root } = path.parse(dir);
+  while (dir !== root) {
+    const pkgPath = path.join(dir, "package.json");
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+        if (pkg.name === pkgName) return dir;
+      } catch { /* skip malformed package.json */ }
+    }
+    dir = path.dirname(dir);
+  }
+  return null;
+}
+
+/**
+ * Resolve the openclaw package root directory.
+ * Checks OPENCLAW_ROOT env, then walks up from process.argv[1], cwd, and import.meta.url.
+ */
+function resolveOpenClawRoot(): string {
+  const override = process.env.OPENCLAW_ROOT?.trim();
+  if (override) return override;
+
+  const candidates = new Set<string>();
+  if (process.argv[1]) candidates.add(path.dirname(process.argv[1]));
+  candidates.add(process.cwd());
+  try {
+    candidates.add(path.dirname(fileURLToPath(import.meta.url)));
+  } catch { /* not available */ }
+
+  for (const start of candidates) {
+    const found = findPackageRoot(start, "openclaw");
+    if (found) return found;
+  }
+
+  // Last resort: try require.resolve
+  try {
+    const sdkEntry = require.resolve("openclaw/plugin-sdk");
+    const idx = sdkEntry.indexOf("/node_modules/openclaw/");
+    if (idx !== -1) return sdkEntry.slice(0, idx + "/node_modules/openclaw".length);
+  } catch { /* not resolvable */ }
+
+  throw new Error(
+    "Unable to resolve openclaw package root. Set OPENCLAW_ROOT env var."
+  );
+}
+
+/**
  * Load core agent dependencies from OpenClaw internals
  */
 async function loadCoreAgentDeps(): Promise<CoreAgentDeps> {
@@ -84,39 +137,27 @@ async function loadCoreAgentDeps(): Promise<CoreAgentDeps> {
     return coreDepsCache;
   }
 
-  // Import from openclaw internals (same pattern as voice-call)
-  const [
-    agentPaths,
-    agentIdentity,
-    sessionUtils,
-    thinking,
-    piRunner,
-    agentTimeouts,
-    workspace,
-  ] = await Promise.all([
-    import("openclaw/dist/agents/paths.js"),
-    import("openclaw/dist/agents/identity.js"),
-    import("openclaw/dist/config/sessions.js"),
-    import("openclaw/dist/config/thinking.js"),
-    import("openclaw/dist/agents/pi-runner.js"),
-    import("openclaw/dist/config/agent-timeouts.js"),
-    import("openclaw/dist/agents/workspace.js"),
-  ]);
-
+  // Resolve the openclaw package root and import the consolidated extensionAPI
+  const openclawRoot = resolveOpenClawRoot();
+  const apiPath = path.join(openclawRoot, "dist", "extensionAPI.js");
+  if (!fs.existsSync(apiPath)) {
+    throw new Error(`Missing openclaw extensionAPI at ${apiPath}`);
+  }
+  const api = await import(pathToFileURL(apiPath).href);
   coreDepsCache = {
-    resolveAgentDir: agentPaths.resolveAgentDir,
-    resolveAgentWorkspaceDir: agentPaths.resolveAgentWorkspaceDir,
-    resolveAgentIdentity: agentIdentity.resolveAgentIdentity,
-    resolveThinkingDefault: thinking.resolveThinkingDefault,
-    runEmbeddedPiAgent: piRunner.runEmbeddedPiAgent,
-    resolveAgentTimeoutMs: agentTimeouts.resolveAgentTimeoutMs,
-    ensureAgentWorkspace: workspace.ensureAgentWorkspace,
-    resolveStorePath: sessionUtils.resolveStorePath,
-    loadSessionStore: sessionUtils.loadSessionStore,
-    saveSessionStore: sessionUtils.saveSessionStore,
-    resolveSessionFilePath: sessionUtils.resolveSessionFilePath,
-    DEFAULT_MODEL: thinking.DEFAULT_MODEL,
-    DEFAULT_PROVIDER: thinking.DEFAULT_PROVIDER,
+    resolveAgentDir: api.resolveAgentDir,
+    resolveAgentWorkspaceDir: api.resolveAgentWorkspaceDir,
+    resolveAgentIdentity: api.resolveAgentIdentity,
+    resolveThinkingDefault: api.resolveThinkingDefault,
+    runEmbeddedPiAgent: api.runEmbeddedPiAgent,
+    resolveAgentTimeoutMs: api.resolveAgentTimeoutMs,
+    ensureAgentWorkspace: api.ensureAgentWorkspace,
+    resolveStorePath: api.resolveStorePath,
+    loadSessionStore: api.loadSessionStore,
+    saveSessionStore: api.saveSessionStore,
+    resolveSessionFilePath: api.resolveSessionFilePath,
+    DEFAULT_MODEL: api.DEFAULT_MODEL,
+    DEFAULT_PROVIDER: api.DEFAULT_PROVIDER,
   };
 
   return coreDepsCache;

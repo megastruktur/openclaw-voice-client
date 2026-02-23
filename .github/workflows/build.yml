@@ -14,13 +14,16 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
-            artifact: '*.AppImage'
+            artifact_path: 'clients/voice-client-desktop/release/*.AppImage'
+            artifact_name: openclaw-voice-linux
           - os: windows-latest
             platform: win
-            artifact: '*.exe'
+            artifact_path: 'clients/voice-client-desktop/release/*.exe'
+            artifact_name: openclaw-voice-win
           - os: macos-latest
             platform: mac
-            artifact: '*.dmg'
+            artifact_path: 'clients/voice-client-desktop/release/*.dmg'
+            artifact_name: openclaw-voice-mac
 
     runs-on: ${{ matrix.os }}
 
@@ -44,21 +47,43 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build -- --${{ matrix.platform }}
 
-      - name: List release directory
-        working-directory: clients/voice-client-desktop
-        run: |
-          echo "Contents of release directory:"
-          ls -lah release/ || echo "Release directory not found"
-        shell: bash
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openclaw-voice-${{ matrix.platform }}
-          path: clients/voice-client-desktop/release/${{ matrix.artifact }}
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
           if-no-files-found: error
 
-  release:
+  release-latest:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish rolling "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Build
+          prerelease: true
+          files: artifacts/**/*
+          body: |
+            🔄 **Automatically updated on every push to `main`.**
+
+            This is the latest development build. For stable releases, see tagged versions.
+
+            **Installation:**
+            - **macOS**: download `.dmg`, open and drag to Applications
+            - **Windows**: download `.exe` installer
+            - **Linux**: download `.AppImage`, `chmod +x`, run
+
+  release-tag:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
@@ -70,7 +95,7 @@ jobs:
         with:
           path: artifacts
 
-      - name: Create Release
+      - name: Create versioned release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*

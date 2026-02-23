@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut } from 'electron'
+import { app, BrowserWindow, globalShortcut, systemPreferences } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -148,12 +148,22 @@ function registerHotkeys(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (process.platform === 'darwin') {
     try {
       app.dock.hide()
     } catch (error) {
       console.error('Failed to hide dock icon:', error)
+    }
+  }
+
+  // Request microphone permission on macOS before creating windows
+  if (process.platform === 'darwin') {
+    const micStatus = systemPreferences.getMediaAccessStatus('microphone')
+    console.log(`[voice-client] Microphone permission status: ${micStatus}`)
+    if (micStatus !== 'granted') {
+      const granted = await systemPreferences.askForMediaAccess('microphone')
+      console.log(`[voice-client] Microphone permission ${granted ? 'granted' : 'denied'}`)
     }
   }
 

@@ -27,9 +27,15 @@ export function useAudio(): UseAudioReturn {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          sampleRate: 16000,
         },
       })
+
+      // Log audio track settings for diagnostics
+      const audioTrack = stream.getAudioTracks()[0]
+      if (audioTrack) {
+        const settings = audioTrack.getSettings()
+        console.log('[useAudio] Mic track:', audioTrack.label, 'settings:', JSON.stringify(settings))
+      }
 
       // Create MediaRecorder
       const mediaRecorder = new MediaRecorder(stream, {
@@ -64,15 +70,13 @@ export function useAudio(): UseAudioReturn {
 
       mediaRecorderRef.current.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        console.log(`[useAudio] Recording stopped: ${chunksRef.current.length} chunks, blob size: ${blob.size} bytes`)
         chunksRef.current = []
-
-        // Stop all tracks
         if (mediaRecorderRef.current) {
           mediaRecorderRef.current.stream
             .getTracks()
             .forEach((track) => track.stop())
         }
-
         mediaRecorderRef.current = null
         setIsRecording(false)
         resolve(blob)

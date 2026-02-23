@@ -16,6 +16,7 @@ export type AgentResponseParams = {
   profileName: string;
   transcript: SessionMessage[];
   userMessage: string;
+  sessionKey?: string;
 };
 
 export type AgentResponseResult = {
@@ -132,8 +133,8 @@ export async function generateAgentResponse(
   try {
     const deps = await loadCoreAgentDeps();
 
-    // Build voice-specific session key based on profile name
-    const sessionKey = `voice-client:${profileName}`;
+    // Use provided sessionKey (e.g., "agent:main:main") or fall back to voice-client-specific key
+    const sessionKey = params.sessionKey || `voice-client:${profileName}`;
     const agentId = "main";
 
     // Resolve paths

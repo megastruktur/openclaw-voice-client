@@ -12,10 +12,12 @@ import type {
 export class VoiceClientAPI {
   private baseUrl: string
   private profileName: string
+  private sessionKey?: string
 
-  constructor(baseUrl: string, profileName: string) {
+  constructor(baseUrl: string, profileName: string, sessionKey?: string) {
     this.baseUrl = baseUrl.replace(/\/$/, '')
     this.profileName = profileName
+    this.sessionKey = sessionKey
   }
 
   /**
@@ -79,14 +81,21 @@ export class VoiceClientAPI {
     sessionId: string,
     audioBlob: Blob
   ): Promise<TranscriptionResponse> {
+    const headers: Record<string, string> = {
+      'X-Profile': this.profileName,
+      'Content-Type': 'audio/wav',
+    }
+
+    // Add session key header if configured
+    if (this.sessionKey) {
+      headers['X-Session-Key'] = this.sessionKey
+    }
+
     const response = await fetch(
       `${this.baseUrl}/audio?sessionId=${sessionId}`,
       {
         method: 'POST',
-        headers: {
-          'X-Profile': this.profileName,
-          'Content-Type': 'audio/wav',
-        },
+        headers,
         body: audioBlob,
       }
     )

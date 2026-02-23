@@ -11,6 +11,7 @@ export function Settings() {
     gatewayUrl: 'http://127.0.0.1:18790/voice-client',
     token: '',
     profileName: '',
+    sessionKey: '',
     microphoneDeviceId: '',
     pushToTalkHotkey: '',
   })
@@ -143,6 +144,20 @@ export function Settings() {
             />
             <p className="form-hint">
               Your name for voice interactions (must be in allowed list)
+            </p>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="session-key">Session Key (Optional)</label>
+            <input
+              id="session-key"
+              type="text"
+              value={settings.sessionKey || ''}
+              onChange={(e) => handleChange('sessionKey', e.target.value)}
+              placeholder="agent:main:main"
+            />
+            <p className="form-hint">
+              Run 'openclaw sessions' on the server to find your session key (e.g. agent:main:main). This allows the voice agent to share memory and context with your main chat session.
             </p>
           </div>
         </section>

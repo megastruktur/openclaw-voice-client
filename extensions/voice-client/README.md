@@ -40,10 +40,14 @@ Add to your `openclaw.json`:
           "sonioxApiKey": "your-soniox-api-key",
           "serve": {
             "port": 18790,
-            "path": "/voice-client"
+            "path": "/voice-client",
+            "bind": "0.0.0.0"
           },
           "profiles": {
-            "allowed": ["Peter", "Olga"]
+            "allowed": ["Peter", "Olga"],
+            "sessionKeys": {
+              "Peter": "agent:main:main"
+            }
           }
         }
       }
@@ -51,6 +55,64 @@ Add to your `openclaw.json`:
   }
 }
 ```
+
+### Session Key Binding
+
+**What is a Session Key?**
+
+A session key (e.g., `agent:main:main`) identifies a specific OpenClaw agent session. By binding a voice profile to an existing session key, the voice agent can:
+- **Share full memory and context** with your main chat session
+- **Access MEMORY.md** and **USER.md** files
+- **Maintain conversation continuity** across voice and text channels
+- **Use the same knowledge base** as your primary agent
+
+**Why it matters:**
+
+Without a session key, each voice interaction runs in an isolated session (`voice-client:ProfileName`). With a session key, your voice agent becomes an extension of your main agent session, with complete context awareness.
+
+**How to find your session key:**
+
+1. On the OpenClaw server, run:
+   ```bash
+   openclaw sessions
+   ```
+
+2. Look for your main chat session. The session key format is typically:
+   ```
+   agent:main:main        # Main agent session
+   agent:main:workspace   # Workspace-specific session
+   ```
+
+3. For Peter's setup, the session key is: `agent:main:main`
+
+**Configuration options:**
+
+**Option 1: Server-side configuration (recommended)**
+
+Add session keys to `openclaw.json` profiles:
+```json
+{
+  "profiles": {
+    "allowed": ["Peter", "Olga"],
+    "sessionKeys": {
+      "Peter": "agent:main:main",
+      "Olga": "agent:main:olga"
+    }
+  }
+}
+```
+
+**Option 2: Client-side configuration**
+
+In the desktop app Settings:
+1. Open **Settings**
+2. Under **Profile** section, enter your **Session Key**
+3. Example: `agent:main:main`
+4. Save settings
+
+The client will send the session key via `X-Session-Key` header, which takes priority over server configuration.
+
+**Priority:** `X-Session-Key` header > `profiles.sessionKeys` config > default (`voice-client:{profileName}`)
 
 ## Development Status
 
@@ -113,6 +175,7 @@ Accepts audio data, transcribes it, generates agent response, and returns both.
 
 **Headers:**
 - `X-Profile: <profile-name>` (required)
+- `X-Session-Key: <session-key>` (optional) - Override profile's default session key
 
 **Query Parameters:**
 - `sessionId` - Session ID (required)

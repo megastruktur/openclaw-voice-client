@@ -30,7 +30,8 @@ export function App() {
       if (loadedSettings.gatewayUrl && loadedSettings.profileName) {
         const apiClient = new VoiceClientAPI(
           loadedSettings.gatewayUrl,
-          loadedSettings.profileName
+          loadedSettings.profileName,
+          loadedSettings.sessionKey
         )
         setApi(apiClient)
 

@@ -84,7 +84,7 @@ export class VoiceClientHttpServer {
     // Set CORS headers for development
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Profile");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Profile, X-Session-Key");
 
     // Handle OPTIONS preflight
     if (req.method === "OPTIONS") {
@@ -190,7 +190,20 @@ export class VoiceClientHttpServer {
         timestamp: new Date(),
       });
 
-      // Step 3: Generate agent response
+      // Step 3: Resolve sessionKey (priority: header > config > default)
+      let sessionKey: string | undefined;
+
+      // Check for X-Session-Key header first
+      const headerSessionKey = req.headers["x-session-key"] as string | undefined;
+      if (headerSessionKey) {
+        sessionKey = headerSessionKey;
+      } else if (this.config.profiles.sessionKeys?.[profileName]) {
+        // Fall back to config
+        sessionKey = this.config.profiles.sessionKeys[profileName];
+      }
+      // Otherwise, agent-service will use default: voice-client:{profileName}
+
+      // Step 4: Generate agent response
       const agentResult = await generateAgentResponse({
         voiceConfig: this.config,
         coreConfig: this.coreConfig,
@@ -198,6 +211,7 @@ export class VoiceClientHttpServer {
         profileName,
         transcript: getSessionMessages(sessionId),
         userMessage: transcription.text,
+        sessionKey,
       });
 
       if (agentResult.error) {
@@ -219,7 +233,7 @@ export class VoiceClientHttpServer {
 
       console.log(`[voice-client] Agent response: "${responseText}"`);
 
-      // Step 4: Add assistant response to session history
+      // Step 5: Add assistant response to session history
       addMessage(sessionId, {
         id: `msg-${Date.now()}-assistant`,
         role: "assistant",
@@ -227,7 +241,7 @@ export class VoiceClientHttpServer {
         timestamp: new Date(),
       });
 
-      // Step 5: Return both transcription and agent response
+      // Step 6: Return both transcription and agent response
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json");
       res.end(

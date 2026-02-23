@@ -15,6 +15,7 @@ export interface VoiceClientConfig {
   };
   profiles: {
     allowed: string[];
+    sessionKeys?: Record<string, string>;
   };
 }
 

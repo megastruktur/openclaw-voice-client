@@ -6,6 +6,7 @@ export interface AppSettings {
   gatewayUrl: string;
   token: string;
   profileName: string;
+  sessionKey?: string;
   microphoneDeviceId?: string;
   pushToTalkHotkey?: string;
 }

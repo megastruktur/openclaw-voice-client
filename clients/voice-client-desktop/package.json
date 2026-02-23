@@ -61,6 +61,12 @@
         "AppImage"
       ],
       "category": "Utility"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "megastruktur",
+      "repo": "openclaw-voice-client",
+      "releaseType": "release"
     }
   },
   "homepage": "https://github.com/megastruktur/openclaw-voice-client",

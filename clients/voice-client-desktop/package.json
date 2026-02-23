@@ -2,7 +2,7 @@
   "name": "openclaw-voice-client-desktop",
   "version": "0.1.0",
   "description": "OpenClaw Voice Client Desktop Application",
-  "main": "dist-electron/main/index.js",
+  "main": "dist-electron/index.js",
   "type": "module",
   "repository": {
     "type": "git",

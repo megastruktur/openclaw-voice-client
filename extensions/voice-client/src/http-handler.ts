@@ -170,6 +170,7 @@ export class VoiceClientHttpServer {
       }
 
       const audioBuffer = Buffer.concat(chunks);
+      console.log(`[voice-client] Audio received: ${audioBuffer.length} bytes from ${profileName}`);
 
       // Step 1: Transcribe audio
       const transcription = await transcribeAudio(
@@ -181,6 +182,24 @@ export class VoiceClientHttpServer {
       );
 
       console.log(`[voice-client] Transcription: "${transcription.text}"`);
+
+      // Guard: empty transcription → return early without calling agent
+      if (!transcription.text) {
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.end(
+          JSON.stringify({
+            transcription: {
+              text: "",
+              confidence: transcription.confidence,
+            },
+            response: {
+              text: "I didn't catch that. Could you try again?",
+            },
+          })
+        );
+        return;
+      }
 
       // Step 2: Add user message to session history
       addMessage(sessionId, {

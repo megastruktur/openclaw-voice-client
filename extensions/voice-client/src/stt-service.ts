@@ -40,6 +40,8 @@ export async function transcribeAudio(
     const transcription = await client.stt.transcribe({
       model: "stt-async-v4",
       file: request.audioBuffer,
+      filename: "recording.webm",
+      language_hints: ["en"],
       wait: true,
       cleanup: ["file", "transcription"],
     });

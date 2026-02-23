@@ -14,7 +14,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
 
   const { isRecording, startRecording, stopRecording, error: audioError } =
-    useAudio()
+    useAudio(settings?.microphoneDeviceId || undefined)
 
   useEffect(() => {
     window.electronAPI.loadSettings().then((loadedSettings) => {

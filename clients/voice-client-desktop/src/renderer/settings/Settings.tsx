@@ -21,12 +21,31 @@ export function Settings() {
     message: string
   } | null>(null)
   const [saved, setSaved] = useState(false)
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
 
   // Load settings on mount
   useEffect(() => {
     window.electronAPI.loadSettings().then((loadedSettings) => {
       setSettings(loadedSettings)
     })
+  }, [])
+
+  // Enumerate microphone devices after getting permission
+  useEffect(() => {
+    async function loadDevices() {
+      try {
+        // Request mic permission first so labels are populated
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach((t) => t.stop())
+
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const audioInputs = devices.filter((d) => d.kind === 'audioinput')
+        setAudioDevices(audioInputs)
+      } catch (err) {
+        console.error('Failed to enumerate audio devices:', err)
+      }
+    }
+    loadDevices()
   }, [])
 
   const handleChange = (field: keyof AppSettings, value: string) => {
@@ -176,7 +195,11 @@ export function Settings() {
               }
             >
               <option value="">Default Microphone</option>
-              {/* TODO: Populate with actual devices */}
+              {audioDevices.map((device) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label || `Microphone (${device.deviceId.slice(0, 8)})`}
+                </option>
+              ))}
             </select>
           </div>
         </section>

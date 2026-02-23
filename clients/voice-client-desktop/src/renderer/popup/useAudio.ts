@@ -11,7 +11,7 @@ export interface UseAudioReturn {
   error: string | null
 }
 
-export function useAudio(): UseAudioReturn {
+export function useAudio(deviceId?: string): UseAudioReturn {
   const [isRecording, setIsRecording] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,11 +23,15 @@ export function useAudio(): UseAudioReturn {
       setError(null)
 
       // Request microphone access
+      const audioConstraints: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+      }
+      if (deviceId) {
+        audioConstraints.deviceId = { exact: deviceId }
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
+        audio: audioConstraints,
       })
 
       // Log audio track settings for diagnostics

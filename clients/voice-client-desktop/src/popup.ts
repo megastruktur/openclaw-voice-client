@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { marked } from 'marked';
-import { AppSettings, SessionResponse, TranscriptionResponse, ConnectionResult } from './types';
+import { AppSettings, SessionResponse, ConnectionResult, VoiceEvent } from './types';
 marked.setOptions({ breaks: true, gfm: true });
 
 let settings: AppSettings | null = null;
@@ -11,6 +12,7 @@ let isRecording = false;
 let isProcessing = false;
 let error: string | null = null;
 let recordingReady: Promise<void> | null = null;
+let unlisten: UnlistenFn | null = null;
 
 const statusEl = document.getElementById('status') as HTMLElement;
 const micButton = document.getElementById('mic-button') as HTMLButtonElement;
@@ -129,6 +131,16 @@ async function startRecording() {
     showError('Recording failed: ' + e);
   }
 }
+function resetAfterProcessing() {
+  isProcessing = false;
+  micButton.classList.remove('processing');
+  micLabel.textContent = 'Hold to Speak';
+  if (unlisten) {
+    unlisten();
+    unlisten = null;
+  }
+}
+
 
 async function stopAndSend() {
   if (!isRecording || !settings || !sessionId) return;
@@ -150,35 +162,83 @@ async function stopAndSend() {
   micLabel.textContent = 'Processing...';
   isProcessing = true;
 
-  try {
-    const response = await invoke<TranscriptionResponse>('stop_and_send', {
-      baseUrl: settings.gatewayUrl,
-      sessionId: sessionId,
-      profileName: settings.profileName,
-      sessionKey: settings.sessionKey || null
-    });
-
-    // Display transcription
-    const userDiv = document.createElement('div');
-    userDiv.className = 'exchange-user';
-    userDiv.textContent = `You: ${response.transcription.text}`;
-    exchangeEl.appendChild(userDiv);
-
-    const agentDiv = document.createElement('div');
-    agentDiv.className = 'exchange-assistant';
-    agentDiv.innerHTML = marked.parse(response.response.text) as string;
-    exchangeEl.appendChild(agentDiv);
-
-    // Scroll to bottom
-    exchangeEl.scrollTop = exchangeEl.scrollHeight;
-
-  } catch (e) {
-    showError('Processing failed: ' + e);
-  } finally {
-    isProcessing = false;
-    micButton.classList.remove('processing');
-    micLabel.textContent = 'Hold to Speak';
+  // Clean up previous listener if any
+  if (unlisten) {
+    unlisten();
+    unlisten = null;
   }
+
+  // Create a div for user transcription (will be filled by 'user' event)
+  const userDiv = document.createElement('div');
+  userDiv.className = 'exchange-user';
+
+  // Create a div for agent response (will be filled by 'openclaw' events)
+  const agentDiv = document.createElement('div');
+  agentDiv.className = 'exchange-assistant';
+
+  let agentText = ''; // Accumulate agent text chunks
+
+  unlisten = await listen<VoiceEvent>('voice-event', (event) => {
+    const payload = event.payload;
+
+    switch (payload.type) {
+      case 'system': {
+        switch (payload.status) {
+          case 'transcribing':
+            micLabel.textContent = 'Transcribing...';
+            break;
+          case 'typing':
+            micLabel.textContent = 'Agent thinking...';
+            break;
+          case 'done':
+            // Render final agent response with markdown
+            if (agentText) {
+              agentDiv.innerHTML = marked.parse(agentText) as string;
+              if (!agentDiv.parentElement) exchangeEl.appendChild(agentDiv);
+            }
+            exchangeEl.scrollTop = exchangeEl.scrollHeight;
+            resetAfterProcessing();
+            break;
+          case 'empty_transcription':
+            micLabel.textContent = 'No speech detected';
+            setTimeout(() => resetAfterProcessing(), 1500);
+            break;
+          case 'error':
+            showError(payload.message || 'Processing failed');
+            resetAfterProcessing();
+            break;
+        }
+        break;
+      }
+      case 'user': {
+        userDiv.textContent = `You: ${payload.text}`;
+        exchangeEl.appendChild(userDiv);
+        exchangeEl.scrollTop = exchangeEl.scrollHeight;
+        break;
+      }
+      case 'openclaw': {
+        agentText = payload.text; // In burst mode, this is the full text
+        // If done is true, final render happens in system:done
+        // Show preview while streaming
+        if (!payload.done) {
+          agentDiv.innerHTML = marked.parse(agentText) as string;
+          if (!agentDiv.parentElement) exchangeEl.appendChild(agentDiv);
+          exchangeEl.scrollTop = exchangeEl.scrollHeight;
+        }
+        break;
+      }
+    }
+  });
+
+  invoke('stop_and_send', {
+    baseUrl: settings.gatewayUrl,
+    sessionId: sessionId,
+    profileName: settings.profileName,
+    sessionKey: settings.sessionKey || null
+  }).catch((e) => {
+    showError('Processing failed: ' + e);
+    resetAfterProcessing();
+  });
 }
 
 function showError(msg: string) {

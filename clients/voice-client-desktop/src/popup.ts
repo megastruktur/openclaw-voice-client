@@ -176,7 +176,12 @@ async function stopAndSend() {
   const agentDiv = document.createElement('div');
   agentDiv.className = 'exchange-assistant';
 
-  let agentText = ''; // Accumulate agent text chunks
+  // Create typing indicator (animated dots)
+  const typingIndicator = document.createElement('div');
+  typingIndicator.className = 'typing-indicator';
+  typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+
+  let agentText = ''; // Accumulate agent text deltas
 
   unlisten = await listen<VoiceEvent>('voice-event', (event) => {
     const payload = event.payload;
@@ -189,8 +194,15 @@ async function stopAndSend() {
             break;
           case 'typing':
             micLabel.textContent = 'Agent thinking...';
+            // Show typing indicator
+            if (!typingIndicator.parentElement) {
+              exchangeEl.appendChild(typingIndicator);
+              exchangeEl.scrollTop = exchangeEl.scrollHeight;
+            }
             break;
           case 'done':
+            // Remove typing indicator if still present
+            typingIndicator.remove();
             // Render final agent response with markdown
             if (agentText) {
               agentDiv.innerHTML = marked.parse(agentText) as string;
@@ -217,10 +229,12 @@ async function stopAndSend() {
         break;
       }
       case 'openclaw': {
-        agentText = payload.text; // In burst mode, this is the full text
-        // If done is true, final render happens in system:done
-        // Show preview while streaming
-        if (!payload.done) {
+        // Remove typing indicator on first token
+        typingIndicator.remove();
+        // Append delta (server sends only new text)
+        agentText += payload.text;
+        // Show preview while streaming (skip done=true empty signal)
+        if (!payload.done && agentText) {
           agentDiv.innerHTML = marked.parse(agentText) as string;
           if (!agentDiv.parentElement) exchangeEl.appendChild(agentDiv);
           exchangeEl.scrollTop = exchangeEl.scrollHeight;

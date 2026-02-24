@@ -13,7 +13,7 @@ import { URL } from "node:url";
 import type { VoiceClientConfig, SessionResponse, VoiceEvent } from "./types.js";
 import { transcribeAudio } from "./stt-service.js";
 import { createSession, getSession, addMessage, getSessionMessages } from "./session-manager.js";
-import { generateAgentResponseBurst } from "./agent-service.js";
+import { generateAgentResponseStreaming } from "./agent-service.js";
 import { writeSSEHeaders, sendSSE, endSSE } from "./sse.js";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 
@@ -227,7 +227,7 @@ export class VoiceClientHttpServer {
       sendSSE(res, { type: "system", status: "typing", timestamp: makeTimestamp() });
 
       let responseText = "";
-      const agentResult = await generateAgentResponseBurst(
+      const agentResult = await generateAgentResponseStreaming(
         {
           voiceConfig: this.config,
           coreConfig: this.coreConfig,
@@ -237,13 +237,16 @@ export class VoiceClientHttpServer {
           userMessage: transcription.text,
           sessionKey,
         },
-        (text, done) => {
+        (delta, done) => {
           sendSSE(res, {
             type: "openclaw",
-            text,
+            text: delta,
             done,
             timestamp: makeTimestamp(),
           });
+          if (!done) {
+            responseText += delta;
+          }
         }
       );
 
@@ -258,7 +261,8 @@ export class VoiceClientHttpServer {
         return;
       }
 
-      responseText = agentResult.text || "";
+      // Use final text from agent result, falling back to accumulated streaming text
+      responseText = agentResult.text || responseText;
 
       // Step 5: Add assistant response to session history
       if (responseText) {

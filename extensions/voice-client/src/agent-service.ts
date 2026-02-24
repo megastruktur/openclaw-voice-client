@@ -28,6 +28,8 @@ export type AgentResponseResult = {
 
 export type BurstCallback = (text: string, done: boolean) => void;
 
+export type StreamingCallback = (delta: string, done: boolean) => void;
+
 /**
  * Core agent dependencies (dynamically loaded from openclaw internals)
  */
@@ -60,6 +62,7 @@ type CoreAgentDeps = {
     lane?: string;
     extraSystemPrompt?: string;
     agentDir?: string;
+    onPartialReply?: (payload: { text: string; mediaUrls?: string[] }) => Promise<void>;
   }) => Promise<{
     payloads?: Array<{ text?: string; isError?: boolean }>;
     meta?: { aborted?: boolean };
@@ -165,93 +168,81 @@ async function loadCoreAgentDeps(): Promise<CoreAgentDeps> {
   return coreDepsCache;
 }
 
+type SessionEntry = {
+  sessionId: string;
+  updatedAt: number;
+};
+
 /**
- * Generate agent response for voice client
+ * Prepare common agent call parameters (shared by all response generation modes)
  */
-export async function generateAgentResponse(
-  params: AgentResponseParams
-): Promise<AgentResponseResult> {
-  const { voiceConfig, coreConfig, sessionId, profileName, transcript, userMessage } = params;
+async function prepareAgentCallParams(params: AgentResponseParams) {
+  const { coreConfig, sessionId, profileName, transcript, userMessage } = params;
+  const deps = await loadCoreAgentDeps();
 
-  try {
-    const deps = await loadCoreAgentDeps();
+  const sessionKey = params.sessionKey || `voice-client:${profileName}`;
+  const agentId = "main";
 
-    // Use provided sessionKey (e.g., "agent:main:main") or fall back to voice-client-specific key
-    const sessionKey = params.sessionKey || `voice-client:${profileName}`;
-    const agentId = "main";
+  const storePath = deps.resolveStorePath(
+    (coreConfig as { session?: { store?: string } }).session?.store,
+    { agentId }
+  );
+  const agentDir = deps.resolveAgentDir(coreConfig, agentId);
+  const workspaceDir = deps.resolveAgentWorkspaceDir(coreConfig, agentId);
 
-    // Resolve paths
-    const storePath = deps.resolveStorePath(
-      (coreConfig as { session?: { store?: string } }).session?.store,
-      { agentId }
-    );
-    const agentDir = deps.resolveAgentDir(coreConfig, agentId);
-    const workspaceDir = deps.resolveAgentWorkspaceDir(coreConfig, agentId);
+  await deps.ensureAgentWorkspace({ dir: workspaceDir });
 
-    // Ensure workspace exists
-    await deps.ensureAgentWorkspace({ dir: workspaceDir });
+  const sessionStore = deps.loadSessionStore(storePath);
+  const now = Date.now();
 
-    // Load or create session entry
-    const sessionStore = deps.loadSessionStore(storePath);
-    const now = Date.now();
+  let sessionEntry = sessionStore[sessionKey] as SessionEntry | undefined;
 
-    type SessionEntry = {
-      sessionId: string;
-      updatedAt: number;
+  if (!sessionEntry || sessionEntry.sessionId !== sessionId) {
+    sessionEntry = {
+      sessionId,
+      updatedAt: now,
     };
+    sessionStore[sessionKey] = sessionEntry;
+    await deps.saveSessionStore(storePath, sessionStore);
+  }
 
-    let sessionEntry = sessionStore[sessionKey] as SessionEntry | undefined;
+  const sessionFile = deps.resolveSessionFilePath(sessionId, sessionEntry, {
+    agentId,
+  });
 
-    if (!sessionEntry || sessionEntry.sessionId !== sessionId) {
-      sessionEntry = {
-        sessionId,
-        updatedAt: now,
-      };
-      sessionStore[sessionKey] = sessionEntry;
-      await deps.saveSessionStore(storePath, sessionStore);
-    }
+  const agentsCfg = (coreConfig as Record<string, unknown>).agents as
+    | { defaults?: { model?: { primary?: string } } }
+    | undefined;
+  const configModel = agentsCfg?.defaults?.model?.primary;
+  const modelRef = configModel || `${deps.DEFAULT_PROVIDER}/${deps.DEFAULT_MODEL}`;
+  const slashIndex = modelRef.indexOf("/");
+  const provider = slashIndex === -1 ? deps.DEFAULT_PROVIDER : modelRef.slice(0, slashIndex);
+  const model = slashIndex === -1 ? modelRef : modelRef.slice(slashIndex + 1);
 
-    const sessionFile = deps.resolveSessionFilePath(sessionId, sessionEntry, {
-      agentId,
-    });
+  const thinkLevel = deps.resolveThinkingDefault({ cfg: coreConfig, provider, model });
 
-    // Resolve model from user's openclaw config, falling back to extensionAPI defaults
-    const agentsCfg = (coreConfig as Record<string, unknown>).agents as
-      | { defaults?: { model?: { primary?: string } } }
-      | undefined;
-    const configModel = agentsCfg?.defaults?.model?.primary;
-    const modelRef = configModel || `${deps.DEFAULT_PROVIDER}/${deps.DEFAULT_MODEL}`;
-    const slashIndex = modelRef.indexOf("/");
-    const provider = slashIndex === -1 ? deps.DEFAULT_PROVIDER : modelRef.slice(0, slashIndex);
-    const model = slashIndex === -1 ? modelRef : modelRef.slice(slashIndex + 1);
+  const identity = deps.resolveAgentIdentity(coreConfig, agentId);
+  const agentName = identity?.name?.trim() || "assistant";
 
-    // Resolve thinking level
-    const thinkLevel = deps.resolveThinkingDefault({ cfg: coreConfig, provider, model });
+  const basePrompt = `You are ${agentName}, a helpful voice assistant. Keep responses brief and conversational (1-2 sentences max). Be natural and friendly. The user is ${profileName}.`;
 
-    // Resolve agent identity
-    const identity = deps.resolveAgentIdentity(coreConfig, agentId);
-    const agentName = identity?.name?.trim() || "assistant";
+  let extraSystemPrompt = basePrompt;
+  if (transcript.length > 0) {
+    const history = transcript
+      .map((entry) => `${entry.role === "assistant" ? "You" : "User"}: ${entry.content}`)
+      .join("\n");
+    extraSystemPrompt = `${basePrompt}\n\nConversation so far:\n${history}`;
+  }
 
-    // Build system prompt with conversation history
-    const basePrompt = `You are ${agentName}, a helpful voice assistant. Keep responses brief and conversational (1-2 sentences max). Be natural and friendly. The user is ${profileName}.`;
+  const timeoutMs = deps.resolveAgentTimeoutMs({ cfg: coreConfig });
+  const runId = `voice-client:${sessionId}:${Date.now()}`;
 
-    let extraSystemPrompt = basePrompt;
-    if (transcript.length > 0) {
-      const history = transcript
-        .map((entry) => `${entry.role === "assistant" ? "You" : "User"}: ${entry.content}`)
-        .join("\n");
-      extraSystemPrompt = `${basePrompt}\n\nConversation so far:\n${history}`;
-    }
-
-    // Resolve timeout
-    const timeoutMs = deps.resolveAgentTimeoutMs({ cfg: coreConfig });
-    const runId = `voice-client:${sessionId}:${Date.now()}`;
-
-    // Run the embedded Pi agent
-    const result = await deps.runEmbeddedPiAgent({
+  return {
+    deps,
+    agentCallParams: {
       sessionId,
       sessionKey,
-      messageProvider: "voice-client",
+      messageProvider: "voice-client" as const,
       sessionFile,
       workspaceDir,
       config: coreConfig,
@@ -259,27 +250,47 @@ export async function generateAgentResponse(
       provider,
       model,
       thinkLevel,
-      verboseLevel: "off",
+      verboseLevel: "off" as const,
       timeoutMs,
       runId,
-      lane: "voice-client",
+      lane: "voice-client" as const,
       extraSystemPrompt,
       agentDir,
-    });
+    },
+  };
+}
 
-    // Extract text from payloads
-    const texts = (result.payloads ?? [])
-      .filter((p) => p.text && !p.isError)
-      .map((p) => p.text?.trim())
-      .filter(Boolean);
+/**
+ * Extract final text from agent result payloads
+ */
+function extractResultText(result: {
+  payloads?: Array<{ text?: string; isError?: boolean }>;
+  meta?: { aborted?: boolean };
+}): AgentResponseResult {
+  const texts = (result.payloads ?? [])
+    .filter((p) => p.text && !p.isError)
+    .map((p) => p.text?.trim())
+    .filter(Boolean);
 
-    const text = texts.join(" ") || null;
+  const text = texts.join(" ") || null;
 
-    if (!text && result.meta?.aborted) {
-      return { text: null, error: "Response generation was aborted" };
-    }
+  if (!text && result.meta?.aborted) {
+    return { text: null, error: "Response generation was aborted" };
+  }
 
-    return { text };
+  return { text };
+}
+
+/**
+ * Generate agent response for voice client (non-streaming)
+ */
+export async function generateAgentResponse(
+  params: AgentResponseParams
+): Promise<AgentResponseResult> {
+  try {
+    const { deps, agentCallParams } = await prepareAgentCallParams(params);
+    const result = await deps.runEmbeddedPiAgent(agentCallParams);
+    return extractResultText(result);
   } catch (error) {
     console.error("[voice-client] Agent response generation failed:", error);
     return {
@@ -301,4 +312,45 @@ export async function generateAgentResponseBurst(
     onChunk(result.text, true);
   }
   return result;
+}
+
+/**
+ * Generate agent response with true token-by-token streaming.
+ * Uses top-level onPartialReply param on runEmbeddedPiAgent to receive cumulative text,
+ * computes deltas, and calls onToken with only the new text.
+ */
+export async function generateAgentResponseStreaming(
+  params: AgentResponseParams,
+  onToken: StreamingCallback
+): Promise<AgentResponseResult> {
+  try {
+    const { deps, agentCallParams } = await prepareAgentCallParams(params);
+
+    // Delta tracking: onPartialReply receives cumulative text
+    let lastEmittedLength = 0;
+
+    const result = await deps.runEmbeddedPiAgent({
+      ...agentCallParams,
+      onPartialReply: async (payload: { text: string }) => {
+        const delta = payload.text.slice(lastEmittedLength);
+        if (delta) {
+          lastEmittedLength = payload.text.length;
+          onToken(delta, false);
+        }
+      },
+    });
+
+    const agentResult = extractResultText(result);
+
+    // Send final done signal
+    onToken("", true);
+
+    return agentResult;
+  } catch (error) {
+    console.error("[voice-client] Agent streaming response failed:", error);
+    return {
+      text: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }

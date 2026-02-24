@@ -10,7 +10,7 @@ vi.mock("../stt-service.js", () => ({
 }));
 
 vi.mock("../agent-service.js", () => ({
-  generateAgentResponseBurst: vi.fn(),
+  generateAgentResponseStreaming: vi.fn(),
 }));
 
 vi.mock("../session-manager.js", () => ({
@@ -24,11 +24,11 @@ vi.mock("../session-manager.js", () => ({
 
 import { VoiceClientHttpServer } from "../http-handler.js";
 import { transcribeAudio } from "../stt-service.js";
-import { generateAgentResponseBurst } from "../agent-service.js";
+import { generateAgentResponseStreaming } from "../agent-service.js";
 import { createSession, getSession, addMessage, getSessionMessages } from "../session-manager.js";
 
 const mockedTranscribe = vi.mocked(transcribeAudio);
-const mockedBurst = vi.mocked(generateAgentResponseBurst);
+const mockedStreaming = vi.mocked(generateAgentResponseStreaming);
 const mockedGetSession = vi.mocked(getSession);
 const mockedAddMessage = vi.mocked(addMessage);
 const mockedGetSessionMessages = vi.mocked(getSessionMessages);
@@ -156,8 +156,11 @@ describe("VoiceClientHttpServer", () => {
         text: "Hello world",
         confidence: 0.95,
       });
-      mockedBurst.mockImplementation(async (_params, onChunk) => {
-        onChunk("Agent says hi", true);
+      mockedStreaming.mockImplementation(async (_params, onToken) => {
+        onToken("Agent ", false);
+        onToken("says ", false);
+        onToken("hi", false);
+        onToken("", true);
         return { text: "Agent says hi" };
       });
 
@@ -174,7 +177,8 @@ describe("VoiceClientHttpServer", () => {
       // Parse SSE events from body
       const events = parseSSEEvents(res.body);
 
-      expect(events.length).toBeGreaterThanOrEqual(5);
+      // With streaming: transcribing, user, typing, 3x openclaw deltas, 1x openclaw done, system:done = 8 events
+      expect(events.length).toBeGreaterThanOrEqual(8);
 
       // Event 1: system:transcribing
       expect(events[0].event).toBe("system");
@@ -191,14 +195,25 @@ describe("VoiceClientHttpServer", () => {
       expect(events[2].event).toBe("system");
       expect(events[2].data.status).toBe("typing");
 
-      // Event 4: openclaw
-      expect(events[3].event).toBe("openclaw");
-      expect(events[3].data.text).toBe("Agent says hi");
-      expect(events[3].data.done).toBe(true);
+      // Events 4-6: openclaw deltas (done=false)
+      const openclawEvents = events.filter((e) => e.event === "openclaw");
+      expect(openclawEvents.length).toBe(4); // 3 deltas + 1 done
 
-      // Event 5: system:done
-      expect(events[4].event).toBe("system");
-      expect(events[4].data.status).toBe("done");
+      expect(openclawEvents[0].data.text).toBe("Agent ");
+      expect(openclawEvents[0].data.done).toBe(false);
+      expect(openclawEvents[1].data.text).toBe("says ");
+      expect(openclawEvents[1].data.done).toBe(false);
+      expect(openclawEvents[2].data.text).toBe("hi");
+      expect(openclawEvents[2].data.done).toBe(false);
+
+      // Event 7: openclaw done signal
+      expect(openclawEvents[3].data.text).toBe("");
+      expect(openclawEvents[3].data.done).toBe(true);
+
+      // Last event: system:done
+      const lastEvent = events[events.length - 1];
+      expect(lastEvent.event).toBe("system");
+      expect(lastEvent.data.status).toBe("done");
     });
 
     it("should emit system:empty_transcription and close when text is empty", async () => {
@@ -242,7 +257,7 @@ describe("VoiceClientHttpServer", () => {
       });
       mockedGetSessionMessages.mockReturnValue([]);
       mockedTranscribe.mockResolvedValue({ text: "test", confidence: 0.9 });
-      mockedBurst.mockResolvedValue({ text: null, error: "Agent exploded" });
+      mockedStreaming.mockResolvedValue({ text: null, error: "Agent exploded" });
 
       const res = await request(`${baseUrl}/audio?sessionId=s1`, {
         method: "POST",
@@ -296,8 +311,9 @@ describe("VoiceClientHttpServer", () => {
       });
       mockedGetSessionMessages.mockReturnValue([]);
       mockedTranscribe.mockResolvedValue({ text: "Hi", confidence: 0.9 });
-      mockedBurst.mockImplementation(async (_params, onChunk) => {
-        onChunk("Hello back", true);
+      mockedStreaming.mockImplementation(async (_params, onToken) => {
+        onToken("Hello back", false);
+        onToken("", true);
         return { text: "Hello back" };
       });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { AgentResponseParams, AgentResponseResult, BurstCallback } from "../agent-service.js";
+import type { AgentResponseParams, AgentResponseResult, BurstCallback, StreamingCallback } from "../agent-service.js";
 
 /**
  * Tests for the BurstCallback / generateAgentResponseBurst contract.
@@ -37,6 +37,36 @@ async function burstWrapper(
   const result = await generateAgentResponse(params);
   if (result.error) return result;
   if (result.text) onChunk(result.text, true);
+  return result;
+}
+
+/**
+ * Mirror of the production streaming wrapper logic for contract testing.
+ * Simulates runEmbeddedPiAgent with opts.onPartialReply receiving cumulative text,
+ * then computing deltas and calling onToken with only the new text.
+ */
+async function streamingWrapper(
+  runAgent: (
+    params: AgentResponseParams,
+    onPartialReply: (payload: { text: string }) => Promise<void>,
+  ) => Promise<AgentResponseResult>,
+  params: AgentResponseParams,
+  onToken: StreamingCallback,
+): Promise<AgentResponseResult> {
+  let lastEmittedLength = 0;
+
+  const result = await runAgent(params, async (payload) => {
+    const delta = payload.text.slice(lastEmittedLength);
+    if (delta) {
+      lastEmittedLength = payload.text.length;
+      onToken(delta, false);
+    }
+  });
+
+  if (!result.error) {
+    onToken("", true);
+  }
+
   return result;
 }
 
@@ -107,5 +137,103 @@ describe("generateAgentResponseBurst (contract tests)", () => {
     expect(result).toEqual({ text: "" });
     // Empty string is falsy, so onChunk should NOT be called
     expect(onChunk).not.toHaveBeenCalled();
+  });
+});
+
+describe("generateAgentResponseStreaming (contract tests)", () => {
+  it("should compute deltas from cumulative text and call onToken with each delta", async () => {
+    const onToken = vi.fn<StreamingCallback>();
+
+    // Simulate agent sending cumulative text: "Hello" → "Hello world" → "Hello world!"
+    const mockRunAgent = vi.fn(async (
+      _params: AgentResponseParams,
+      onPartialReply: (payload: { text: string }) => Promise<void>,
+    ) => {
+      await onPartialReply({ text: "Hello" });
+      await onPartialReply({ text: "Hello world" });
+      await onPartialReply({ text: "Hello world!" });
+      return { text: "Hello world!" } as AgentResponseResult;
+    });
+
+    const result = await streamingWrapper(mockRunAgent, STUB_PARAMS, onToken);
+
+    expect(result).toEqual({ text: "Hello world!" });
+
+    // Should have received 3 delta calls + 1 done call
+    expect(onToken).toHaveBeenCalledTimes(4);
+    expect(onToken).toHaveBeenNthCalledWith(1, "Hello", false);
+    expect(onToken).toHaveBeenNthCalledWith(2, " world", false);
+    expect(onToken).toHaveBeenNthCalledWith(3, "!", false);
+    expect(onToken).toHaveBeenNthCalledWith(4, "", true);
+  });
+
+  it("should send done signal even when no partial replies received", async () => {
+    const onToken = vi.fn<StreamingCallback>();
+
+    const mockRunAgent = vi.fn(async () => {
+      return { text: "Direct result" } as AgentResponseResult;
+    });
+
+    const result = await streamingWrapper(mockRunAgent, STUB_PARAMS, onToken);
+
+    expect(result).toEqual({ text: "Direct result" });
+    // Only done signal
+    expect(onToken).toHaveBeenCalledOnce();
+    expect(onToken).toHaveBeenCalledWith("", true);
+  });
+
+  it("should NOT call onToken when agent returns an error", async () => {
+    const onToken = vi.fn<StreamingCallback>();
+
+    const mockRunAgent = vi.fn(async () => {
+      return { text: null, error: "Agent exploded" } as AgentResponseResult;
+    });
+
+    const result = await streamingWrapper(mockRunAgent, STUB_PARAMS, onToken);
+
+    expect(result).toEqual({ text: null, error: "Agent exploded" });
+    expect(onToken).not.toHaveBeenCalled();
+  });
+
+  it("should skip duplicate cumulative text (no empty deltas)", async () => {
+    const onToken = vi.fn<StreamingCallback>();
+
+    const mockRunAgent = vi.fn(async (
+      _params: AgentResponseParams,
+      onPartialReply: (payload: { text: string }) => Promise<void>,
+    ) => {
+      await onPartialReply({ text: "Hello" });
+      await onPartialReply({ text: "Hello" }); // duplicate
+      await onPartialReply({ text: "Hello world" });
+      return { text: "Hello world" } as AgentResponseResult;
+    });
+
+    const result = await streamingWrapper(mockRunAgent, STUB_PARAMS, onToken);
+
+    expect(result).toEqual({ text: "Hello world" });
+    // 2 deltas + 1 done (duplicate skipped)
+    expect(onToken).toHaveBeenCalledTimes(3);
+    expect(onToken).toHaveBeenNthCalledWith(1, "Hello", false);
+    expect(onToken).toHaveBeenNthCalledWith(2, " world", false);
+    expect(onToken).toHaveBeenNthCalledWith(3, "", true);
+  });
+
+  it("should handle single large cumulative text", async () => {
+    const onToken = vi.fn<StreamingCallback>();
+
+    const mockRunAgent = vi.fn(async (
+      _params: AgentResponseParams,
+      onPartialReply: (payload: { text: string }) => Promise<void>,
+    ) => {
+      await onPartialReply({ text: "The quick brown fox jumps over the lazy dog" });
+      return { text: "The quick brown fox jumps over the lazy dog" } as AgentResponseResult;
+    });
+
+    const result = await streamingWrapper(mockRunAgent, STUB_PARAMS, onToken);
+
+    expect(result).toEqual({ text: "The quick brown fox jumps over the lazy dog" });
+    expect(onToken).toHaveBeenCalledTimes(2);
+    expect(onToken).toHaveBeenNthCalledWith(1, "The quick brown fox jumps over the lazy dog", false);
+    expect(onToken).toHaveBeenNthCalledWith(2, "", true);
   });
 });

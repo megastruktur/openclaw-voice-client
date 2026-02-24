@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { marked } from 'marked';
 import { AppSettings, SessionResponse, TranscriptionResponse, ConnectionResult } from './types';
+marked.setOptions({ breaks: true, gfm: true });
 
 let settings: AppSettings | null = null;
 let sessionId: string | null = null;
@@ -18,6 +21,7 @@ const sessionIdEl = document.getElementById('session-id') as HTMLElement;
 const newSessionBtn = document.getElementById('new-session-btn') as HTMLButtonElement;
 const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
 const quitBtn = document.getElementById('quit-btn') as HTMLButtonElement;
+const minimizeBtn = document.getElementById('minimize-btn') as HTMLButtonElement;
 
 async function loadSettings() {
   try {
@@ -32,20 +36,38 @@ async function loadSettings() {
   }
 }
 
-async function testConnection(baseUrl: string) {
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function testConnection(baseUrl: string, attempt = 1): Promise<void> {
   try {
     const result = await invoke<ConnectionResult>('test_connection', { baseUrl });
     updateStatus(result.success);
     if (!result.success) {
+      if (attempt < MAX_RETRIES) {
+        updateStatus(false);
+        statusEl.textContent = `○ Retrying (${attempt}/${MAX_RETRIES})…`;
+        await delay(RETRY_DELAY_MS);
+        return testConnection(baseUrl, attempt + 1);
+      }
       showError(result.error || 'Connection failed');
     } else {
       clearError();
-      // Auto-create session if none exists
       if (!sessionId) {
         await handleNewSession();
       }
     }
   } catch (e) {
+    if (attempt < MAX_RETRIES) {
+      updateStatus(false);
+      statusEl.textContent = `○ Retrying (${attempt}/${MAX_RETRIES})…`;
+      await delay(RETRY_DELAY_MS);
+      return testConnection(baseUrl, attempt + 1);
+    }
     updateStatus(false);
     showError('Connection error: ' + e);
   }
@@ -142,10 +164,9 @@ async function stopAndSend() {
     userDiv.textContent = `You: ${response.transcription.text}`;
     exchangeEl.appendChild(userDiv);
 
-    // Display response
     const agentDiv = document.createElement('div');
     agentDiv.className = 'exchange-assistant';
-    agentDiv.textContent = `AI: ${response.response.text}`;
+    agentDiv.innerHTML = marked.parse(response.response.text) as string;
     exchangeEl.appendChild(agentDiv);
 
     // Scroll to bottom
@@ -183,6 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   quitBtn.addEventListener('click', () => {
     invoke('quit_app');
+  });
+
+  minimizeBtn.addEventListener('click', () => {
+    getCurrentWindow().hide();
   });
 
   // Mic button interactions

@@ -8,9 +8,10 @@
 </head>
 <body>
     <div class="app">
-        <header class="header">
-            <h1>OpenClaw Voice</h1>
-            <div id="status" class="status disconnected">Disconnected</div>
+        <header class="header" data-tauri-drag-region>
+            <button id="minimize-btn" class="minimize-button" title="Minimize to tray">─</button>
+            <h1 data-tauri-drag-region>OpenClaw Voice</h1>
+            <div id="status" class="status disconnected" data-tauri-drag-region>Disconnected</div>
         </header>
 
         <main class="content">

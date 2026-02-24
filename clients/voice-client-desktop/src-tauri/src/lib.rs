@@ -103,7 +103,7 @@ pub fn run() {
                 WebviewUrl::App("popup.html".into()),
             )
             .title("OpenClaw Voice")
-            .inner_size(320.0, 480.0)
+            .inner_size(360.0, 600.0)
             .decorations(false)
             .skip_taskbar(true)
             .visible(false)

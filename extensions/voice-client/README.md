@@ -164,14 +164,14 @@ The client will send the session key via `X-Session-Key` header, which takes pri
 
 | Endpoint | Method | Description | Status |
 |----------|--------|-------------|--------|
-| `/voice-client/audio` | POST | Stream audio for transcription | ✅ Implemented |
+| `/voice-client/audio` | POST | Send audio, receive SSE event stream | ✅ Implemented |
 | `/voice-client/session` | GET | Get current session info | ✅ Implemented |
 | `/voice-client/session/new` | POST | Create new session | ✅ Implemented |
 | `/voice-client/profiles` | GET | List allowed profiles | ✅ Implemented |
 
 ### POST /voice-client/audio?sessionId=<id>
 
-Accepts audio data, transcribes it, generates agent response, and returns both.
+Accepts audio data, transcribes it, generates agent response, and streams results as Server-Sent Events.
 
 **Headers:**
 - `X-Profile: <profile-name>` (required)
@@ -182,17 +182,25 @@ Accepts audio data, transcribes it, generates agent response, and returns both.
 
 **Request Body:** Raw audio data (WAV, MP3, etc.)
 
-**Response:**
-```json
-{
-  "transcription": {
-    "text": "What's the weather today?",
-    "confidence": 0.95
-  },
-  "response": {
-    "text": "I'll check the weather for you..."
-  }
-}
+**Response:** `Content-Type: text/event-stream`
+
+Pre-SSE validation errors (missing header, bad profile, missing session) return JSON with appropriate HTTP status codes.
+
+```text
+event: system
+data: {"type":"system","status":"transcribing","timestamp":"2026-02-24T12:00:00Z"}
+
+event: user
+data: {"type":"user","text":"What's the weather today?","confidence":0.95,"timestamp":"2026-02-24T12:00:01Z"}
+
+event: system
+data: {"type":"system","status":"typing","timestamp":"2026-02-24T12:00:01Z"}
+
+event: openclaw
+data: {"type":"openclaw","text":"I'll check the weather for you...","done":true,"timestamp":"2026-02-24T12:00:03Z"}
+
+event: system
+data: {"type":"system","status":"done","timestamp":"2026-02-24T12:00:03Z"}
 ```
 
 ### GET /voice-client/session

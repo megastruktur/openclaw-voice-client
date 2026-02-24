@@ -46,7 +46,7 @@ OpenClaw Voice Client enables voice interaction with OpenClaw Gateway through a 
 │  │  └──────────────┘  └──────────────┘  └─────────┘ │     │
 │  └────────────────────────────────────────────────────┘     │
 │                          │                                   │
-│                          │ Text Response                     │
+│                          │ SSE Event Stream                  │
 │                          ▼                                   │
 │  ┌────────────────────────────────────────────────────┐     │
 │  │           Pi Agent (main)                          │     │
@@ -182,9 +182,9 @@ npx tauri build
 
 ### Viewing Responses
 
-- Transcription appears instantly
-- Agent response shows below
-- Last exchange is saved in the popup
+- Transcription appears instantly when recognized
+- Typing indicator shows while agent processes
+- Agent response streams in progressively
 
 ## Configuration Reference
 
@@ -267,7 +267,7 @@ The plugin exposes these HTTP endpoints:
 | `GET /voice-client/profiles` | GET | List allowed profiles |
 | `POST /voice-client/session/new` | POST | Create new session |
 | `GET /voice-client/session?id=<id>` | GET | Get session info |
-| `POST /voice-client/audio?sessionId=<id>` | POST | Send audio for processing |
+| `POST /voice-client/audio?sessionId=<id>` | POST | Send audio, receive SSE event stream |
 
 ### Example: Send Audio
 
@@ -278,23 +278,28 @@ SESSION_ID=$(curl -X POST http://127.0.0.1:18790/voice-client/session/new \
   -d '{"profileName":"Peter"}' | jq -r .sessionId)
 
 # Send audio
-curl -X POST "http://127.0.0.1:18790/voice-client/audio?sessionId=$SESSION_ID" \
+curl -N -X POST "http://127.0.0.1:18790/voice-client/audio?sessionId=$SESSION_ID" \
   -H "X-Profile: Peter" \
   -H "Content-Type: audio/wav" \
   --data-binary @recording.wav
 ```
 
 Response:
-```json
-{
-  "transcription": {
-    "text": "What's the weather today?",
-    "confidence": 0.95
-  },
-  "response": {
-    "text": "Let me check the weather for you..."
-  }
-}
+```text
+event: system
+data: {"type":"system","status":"transcribing","timestamp":"2026-02-24T12:00:00Z"}
+
+event: user
+data: {"type":"user","text":"What's the weather today?","confidence":0.95,"timestamp":"2026-02-24T12:00:01Z"}
+
+event: system
+data: {"type":"system","status":"typing","timestamp":"2026-02-24T12:00:01Z"}
+
+event: openclaw
+data: {"type":"openclaw","text":"Let me check the weather for you...","done":true,"timestamp":"2026-02-24T12:00:03Z"}
+
+event: system
+data: {"type":"system","status":"done","timestamp":"2026-02-24T12:00:03Z"}
 ```
 
 ## Building from Source

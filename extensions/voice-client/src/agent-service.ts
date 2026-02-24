@@ -26,6 +26,8 @@ export type AgentResponseResult = {
   error?: string;
 };
 
+export type BurstCallback = (text: string, done: boolean) => void;
+
 /**
  * Core agent dependencies (dynamically loaded from openclaw internals)
  */
@@ -285,4 +287,18 @@ export async function generateAgentResponse(
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+export async function generateAgentResponseBurst(
+  params: AgentResponseParams,
+  onChunk: BurstCallback
+): Promise<AgentResponseResult> {
+  const result = await generateAgentResponse(params);
+  if (result.error) {
+    return result;
+  }
+  if (result.text) {
+    onChunk(result.text, true);
+  }
+  return result;
 }

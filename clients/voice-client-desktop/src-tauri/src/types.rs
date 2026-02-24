@@ -43,28 +43,7 @@ pub struct SessionResponse {
     pub profile_name: String,
 }
 
-/// Transcription result nested in TranscriptionResponse
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TranscriptionResult {
-    pub text: String,
-    pub confidence: f64,
-}
-
-/// Agent response nested in TranscriptionResponse
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentResponse {
-    pub text: String,
-}
-
-/// Full response from POST /audio
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TranscriptionResponse {
-    pub transcription: TranscriptionResult,
-    pub response: AgentResponse,
-}
+// Old JSON response types removed — POST /audio now returns SSE stream
 
 /// Result of test_connection
 #[derive(Debug, Clone, Serialize, Deserialize)]

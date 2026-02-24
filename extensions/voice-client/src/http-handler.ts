@@ -10,13 +10,18 @@
 
 import http from "node:http";
 import { URL } from "node:url";
-import type { VoiceClientConfig, SessionResponse } from "./types.js";
+import type { VoiceClientConfig, SessionResponse, VoiceEvent } from "./types.js";
 import { transcribeAudio } from "./stt-service.js";
 import { createSession, getSession, addMessage, getSessionMessages } from "./session-manager.js";
-import { generateAgentResponse } from "./agent-service.js";
+import { generateAgentResponseBurst } from "./agent-service.js";
+import { writeSSEHeaders, sendSSE, endSSE } from "./sse.js";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 
 const MAX_AUDIO_SIZE = 10 * 1024 * 1024; // 10MB max audio file
+
+function makeTimestamp(): string {
+  return new Date().toISOString();
+}
 
 /**
  * Voice Client HTTP Server
@@ -51,7 +56,9 @@ export class VoiceClientHttpServer {
       });
 
       this.server.listen(port, hostname, () => {
-        const url = `http://${hostname}:${port}${this.basePath}`;
+        const addr = this.server!.address() as { port: number };
+        const actualPort = addr?.port ?? port;
+        const url = `http://${hostname}:${actualPort}${this.basePath}`;
         console.log(`[voice-client] HTTP server listening on ${url}`);
         resolve(url);
       });
@@ -117,8 +124,9 @@ export class VoiceClientHttpServer {
     req: http.IncomingMessage,
     res: http.ServerResponse
   ): Promise<void> {
+    let sseStarted = false;
     try {
-      // Get profile from header
+      // --- Validation (JSON errors, before SSE) ---
       const profileName = req.headers["x-profile"] as string;
       if (!profileName) {
         res.statusCode = 400;
@@ -127,7 +135,6 @@ export class VoiceClientHttpServer {
         return;
       }
 
-      // Validate profile is allowed
       if (!this.config.profiles.allowed.includes(profileName)) {
         res.statusCode = 403;
         res.setHeader("Content-Type", "application/json");
@@ -135,7 +142,6 @@ export class VoiceClientHttpServer {
         return;
       }
 
-      // Get session ID from query parameter
       const url = new URL(req.url || "/", `http://${req.headers.host}`);
       const sessionId = url.searchParams.get("sessionId");
       if (!sessionId) {
@@ -145,7 +151,6 @@ export class VoiceClientHttpServer {
         return;
       }
 
-      // Verify session exists
       const session = getSession(sessionId);
       if (!session) {
         res.statusCode = 404;
@@ -172,32 +177,32 @@ export class VoiceClientHttpServer {
       const audioBuffer = Buffer.concat(chunks);
       console.log(`[voice-client] Audio received: ${audioBuffer.length} bytes from ${profileName}`);
 
-      // Step 1: Transcribe audio
+      // --- Switch to SSE mode ---
+      writeSSEHeaders(res);
+      sseStarted = true;
+
+      // Step 1: Transcribe
+      sendSSE(res, { type: "system", status: "transcribing", timestamp: makeTimestamp() });
+
       const transcription = await transcribeAudio(
-        {
-          audioBuffer,
-          profileName,
-        },
+        { audioBuffer, profileName },
         this.config.sonioxApiKey
       );
 
       console.log(`[voice-client] Transcription: "${transcription.text}"`);
 
-      // Guard: empty transcription → return early without calling agent
+      // Send user event immediately
+      sendSSE(res, {
+        type: "user",
+        text: transcription.text || "",
+        confidence: transcription.confidence ?? 0,
+        timestamp: makeTimestamp(),
+      });
+
+      // Guard: empty transcription
       if (!transcription.text) {
-        res.statusCode = 200;
-        res.setHeader("Content-Type", "application/json");
-        res.end(
-          JSON.stringify({
-            transcription: {
-              text: "",
-              confidence: transcription.confidence,
-            },
-            response: {
-              text: "I didn't catch that. Could you try again?",
-            },
-          })
-        );
+        sendSSE(res, { type: "system", status: "empty_transcription", timestamp: makeTimestamp() });
+        endSSE(res);
         return;
       }
 
@@ -211,79 +216,82 @@ export class VoiceClientHttpServer {
 
       // Step 3: Resolve sessionKey (priority: header > config > default)
       let sessionKey: string | undefined;
-
-      // Check for X-Session-Key header first
       const headerSessionKey = req.headers["x-session-key"] as string | undefined;
       if (headerSessionKey) {
         sessionKey = headerSessionKey;
       } else if (this.config.profiles.sessionKeys?.[profileName]) {
-        // Fall back to config
         sessionKey = this.config.profiles.sessionKeys[profileName];
       }
-      // Otherwise, agent-service will use default: voice-client:{profileName}
 
-      // Step 4: Generate agent response
-      const agentResult = await generateAgentResponse({
-        voiceConfig: this.config,
-        coreConfig: this.coreConfig,
-        sessionId,
-        profileName,
-        transcript: getSessionMessages(sessionId),
-        userMessage: transcription.text,
-        sessionKey,
-      });
+      // Step 4: Typing indicator + agent response
+      sendSSE(res, { type: "system", status: "typing", timestamp: makeTimestamp() });
+
+      let responseText = "";
+      const agentResult = await generateAgentResponseBurst(
+        {
+          voiceConfig: this.config,
+          coreConfig: this.coreConfig,
+          sessionId,
+          profileName,
+          transcript: getSessionMessages(sessionId),
+          userMessage: transcription.text,
+          sessionKey,
+        },
+        (text, done) => {
+          sendSSE(res, {
+            type: "openclaw",
+            text,
+            done,
+            timestamp: makeTimestamp(),
+          });
+        }
+      );
 
       if (agentResult.error) {
-        res.statusCode = 500;
-        res.setHeader("Content-Type", "application/json");
-        res.end(
-          JSON.stringify({
-            transcription: {
-              text: transcription.text,
-              confidence: transcription.confidence,
-            },
-            error: agentResult.error,
-          })
-        );
+        sendSSE(res, {
+          type: "system",
+          status: "error",
+          message: agentResult.error,
+          timestamp: makeTimestamp(),
+        });
+        endSSE(res);
         return;
       }
 
-      const responseText = agentResult.text || "I'm sorry, I couldn't generate a response.";
-
-      console.log(`[voice-client] Agent response: "${responseText}"`);
+      responseText = agentResult.text || "";
 
       // Step 5: Add assistant response to session history
-      addMessage(sessionId, {
-        id: `msg-${Date.now()}-assistant`,
-        role: "assistant",
-        content: responseText,
-        timestamp: new Date(),
-      });
+      if (responseText) {
+        addMessage(sessionId, {
+          id: `msg-${Date.now()}-assistant`,
+          role: "assistant",
+          content: responseText,
+          timestamp: new Date(),
+        });
+      }
 
-      // Step 6: Return both transcription and agent response
-      res.statusCode = 200;
-      res.setHeader("Content-Type", "application/json");
-      res.end(
-        JSON.stringify({
-          transcription: {
-            text: transcription.text,
-            confidence: transcription.confidence,
-          },
-          response: {
-            text: responseText,
-          },
-        })
-      );
+      // Step 6: Done
+      sendSSE(res, { type: "system", status: "done", timestamp: makeTimestamp() });
+      endSSE(res);
     } catch (error) {
       console.error("[voice-client] Audio processing failed:", error);
-      res.statusCode = 500;
-      res.setHeader("Content-Type", "application/json");
-      res.end(
-        JSON.stringify({
+      if (sseStarted) {
+        sendSSE(res, {
+          type: "system",
+          status: "error",
+          message: error instanceof Error ? error.message : "Audio processing failed",
+          timestamp: makeTimestamp(),
+        });
+        endSSE(res);
+      } else {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({
           error: error instanceof Error ? error.message : "Audio processing failed",
-        })
-      );
+        }));
+      }
     }
+
   }
 
   /**

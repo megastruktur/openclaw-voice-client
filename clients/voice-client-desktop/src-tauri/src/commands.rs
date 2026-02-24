@@ -1,7 +1,7 @@
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::types::{
-    AppSettings, AudioDevice, ConnectionResult, SessionResponse, TranscriptionResponse,
+    AppSettings, AudioDevice, ConnectionResult, SessionResponse,
 };
 use crate::{audio, api, settings};
 
@@ -20,14 +20,16 @@ pub async fn start_recording(
 
 #[tauri::command]
 pub async fn stop_and_send(
+    app: AppHandle,
     base_url: String,
     session_id: String,
     profile_name: String,
     session_key: Option<String>,
     state: State<'_, crate::audio::AudioState>,
-) -> Result<TranscriptionResponse, String> {
+) -> Result<(), String> {
     let wav_bytes = audio::stop_recording(&state)?;
-    api::send_audio(
+    api::send_audio_streaming(
+        &app,
         base_url.as_str(),
         session_id.as_str(),
         profile_name.as_str(),

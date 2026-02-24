@@ -8,6 +8,7 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, WebviewUrl, WebviewWindowBuilder,
+    image::Image,
 };
 
 pub fn run() {
@@ -30,6 +31,10 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            // Request mic permission synchronously BEFORE creating windows.
+            // On first launch this blocks until the user responds to the TCC dialog.
+            // On subsequent launches the permission is cached and returns instantly.
+            audio::request_mic_permission();
 
             let open_item = MenuItem::with_id(app, "open", "Open Voice Client", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
@@ -37,7 +42,11 @@ pub fn run() {
 
             let menu = Menu::with_items(app, &[&open_item, &settings_item, &quit_item])?;
 
+            let icon = Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
+                .expect("failed to load tray icon");
             let _tray = TrayIconBuilder::new()
+                .icon(icon)
+                .icon_as_template(true)
                 .tooltip("OpenClaw Voice Client")
                 .menu(&menu)
                 .show_menu_on_left_click(false)

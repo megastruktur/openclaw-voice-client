@@ -10,10 +10,6 @@
   },
   "app": {
     "windows": [],
-    "trayIcon": {
-      "iconPath": "icons/tray-icon.png",
-      "tooltip": "OpenClaw Voice Client"
-    },
     "security": {
       "csp": "default-src 'self'; connect-src 'self' http://* https://*; script-src 'self'"
     }

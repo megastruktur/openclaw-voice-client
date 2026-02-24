@@ -7,6 +7,7 @@ let connected = false;
 let isRecording = false;
 let isProcessing = false;
 let error: string | null = null;
+let recordingReady: Promise<void> | null = null;
 
 const statusEl = document.getElementById('status') as HTMLElement;
 const micButton = document.getElementById('mic-button') as HTMLButtonElement;
@@ -39,8 +40,10 @@ async function testConnection(baseUrl: string) {
       showError(result.error || 'Connection failed');
     } else {
       clearError();
-      // If we have a session ID stored or want to create one automatically, we could.
-      // For now, we wait for user to click New Session or if we had one.
+      // Auto-create session if none exists
+      if (!sessionId) {
+        await handleNewSession();
+      }
     }
   } catch (e) {
     updateStatus(false);
@@ -87,17 +90,18 @@ async function handleNewSession() {
 
 async function startRecording() {
   if (!connected || isProcessing || !settings || !sessionId) return;
-  
+  isRecording = true;
+  micButton.classList.add('recording');
+  micLabel.textContent = 'Listening...';
+  recordingReady = invoke('start_recording', {
+    deviceId: settings.microphoneDeviceId || null
+  });
+
   try {
-    isRecording = true;
-    micButton.classList.add('recording');
-    micLabel.textContent = 'Listening...';
-    
-    await invoke('start_recording', {
-      deviceId: settings.microphoneDeviceId || null
-    });
+    await recordingReady;
   } catch (e) {
     isRecording = false;
+    recordingReady = null;
     micButton.classList.remove('recording');
     micLabel.textContent = 'Error';
     showError('Recording failed: ' + e);
@@ -106,6 +110,17 @@ async function startRecording() {
 
 async function stopAndSend() {
   if (!isRecording || !settings || !sessionId) return;
+  // Wait for start_recording to complete before stopping
+  if (recordingReady) {
+    try {
+      await recordingReady;
+    } catch {
+      // start_recording failed — nothing to stop
+      recordingReady = null;
+      return;
+    }
+    recordingReady = null;
+  }
 
   isRecording = false;
   micButton.classList.remove('recording');

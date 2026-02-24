@@ -213,8 +213,12 @@ export async function generateAgentResponse(
       agentId,
     });
 
-    // Resolve model from config (use defaults if not specified)
-    const modelRef = `${deps.DEFAULT_PROVIDER}/${deps.DEFAULT_MODEL}`;
+    // Resolve model from user's openclaw config, falling back to extensionAPI defaults
+    const agentsCfg = (coreConfig as Record<string, unknown>).agents as
+      | { defaults?: { model?: { primary?: string } } }
+      | undefined;
+    const configModel = agentsCfg?.defaults?.model?.primary;
+    const modelRef = configModel || `${deps.DEFAULT_PROVIDER}/${deps.DEFAULT_MODEL}`;
     const slashIndex = modelRef.indexOf("/");
     const provider = slashIndex === -1 ? deps.DEFAULT_PROVIDER : modelRef.slice(0, slashIndex);
     const model = slashIndex === -1 ? modelRef : modelRef.slice(slashIndex + 1);

@@ -31,6 +31,35 @@ impl AudioState {
     }
 }
 
+
+/// Briefly open a mic stream to trigger the macOS permission prompt at startup.
+/// Runs on a background thread — no-op if permission is already granted.
+pub fn request_mic_permission() {
+    let host = cpal::default_host();
+    let device = match host.default_input_device() {
+        Some(d) => d,
+        None => return,
+    };
+    let config = match device.default_input_config() {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let stream_config: StreamConfig = config.into();
+    // Build a short-lived input stream — this triggers the TCC prompt.
+    let stream = device.build_input_stream(
+        &stream_config,
+        |_data: &[f32], _: &cpal::InputCallbackInfo| {},
+        |_err| {},
+        None,
+    );
+    if let Ok(s) = stream {
+        let _ = s.play();
+        // Keep stream alive briefly so the OS registers the access.
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        drop(s);
+    }
+}
+
 pub fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
     let host = cpal::default_host();
     let default_device = host.default_input_device();

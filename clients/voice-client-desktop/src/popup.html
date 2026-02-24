@@ -17,11 +17,13 @@
         <main class="content">
             <div class="mic-container">
                 <button id="mic-button" class="mic-button" disabled>
-                    <div class="mic-icon">🎤</div>
-                    <div id="mic-label" class="mic-label">Ready</div>
+                    <svg class="geo-rings" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                      <circle class="ring-outer" cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+                      <polygon class="ring-hex" points="50,20 75.98,35 75.98,65 50,80 24.02,65 24.02,35" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+                      <circle class="ring-inner" cx="50" cy="50" r="15" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+                    </svg>
                 </button>
             </div>
-
             <div id="exchange" class="exchange">
                 <!-- Conversation history will appear here -->
             </div>

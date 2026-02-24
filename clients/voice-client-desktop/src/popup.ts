@@ -16,7 +16,6 @@ let unlisten: UnlistenFn | null = null;
 
 const statusEl = document.getElementById('status') as HTMLElement;
 const micButton = document.getElementById('mic-button') as HTMLButtonElement;
-const micLabel = document.getElementById('mic-label') as HTMLElement;
 const exchangeEl = document.getElementById('exchange') as HTMLElement;
 const errorEl = document.getElementById('error') as HTMLElement;
 const sessionIdEl = document.getElementById('session-id') as HTMLElement;
@@ -82,13 +81,11 @@ function updateStatus(isConnected: boolean) {
     statusEl.classList.remove('disconnected');
     statusEl.classList.add('connected');
     micButton.disabled = false;
-    micLabel.textContent = 'Hold to Speak';
   } else {
     statusEl.textContent = '○ Disconnected';
     statusEl.classList.remove('connected');
     statusEl.classList.add('disconnected');
     micButton.disabled = true;
-    micLabel.textContent = 'Disconnected';
   }
 }
 
@@ -116,7 +113,6 @@ async function startRecording() {
   if (!connected || isProcessing || !settings || !sessionId) return;
   isRecording = true;
   micButton.classList.add('recording');
-  micLabel.textContent = 'Listening...';
   recordingReady = invoke('start_recording', {
     deviceId: settings.microphoneDeviceId || null
   });
@@ -127,14 +123,13 @@ async function startRecording() {
     isRecording = false;
     recordingReady = null;
     micButton.classList.remove('recording');
-    micLabel.textContent = 'Error';
     showError('Recording failed: ' + e);
   }
 }
 function resetAfterProcessing() {
   isProcessing = false;
   micButton.classList.remove('processing');
-  micLabel.textContent = 'Hold to Speak';
+  micButton.classList.remove('no-speech');
   if (unlisten) {
     unlisten();
     unlisten = null;
@@ -159,7 +154,6 @@ async function stopAndSend() {
   isRecording = false;
   micButton.classList.remove('recording');
   micButton.classList.add('processing');
-  micLabel.textContent = 'Processing...';
   isProcessing = true;
 
   // Clean up previous listener if any
@@ -190,10 +184,8 @@ async function stopAndSend() {
       case 'system': {
         switch (payload.status) {
           case 'transcribing':
-            micLabel.textContent = 'Transcribing...';
             break;
           case 'typing':
-            micLabel.textContent = 'Agent thinking...';
             // Show typing indicator
             if (!typingIndicator.parentElement) {
               exchangeEl.appendChild(typingIndicator);
@@ -212,8 +204,11 @@ async function stopAndSend() {
             resetAfterProcessing();
             break;
           case 'empty_transcription':
-            micLabel.textContent = 'No speech detected';
-            setTimeout(() => resetAfterProcessing(), 1500);
+            micButton.classList.add('no-speech');
+            setTimeout(() => {
+              micButton.classList.remove('no-speech');
+              resetAfterProcessing();
+            }, 1500);
             break;
           case 'error':
             showError(payload.message || 'Processing failed');
@@ -223,7 +218,7 @@ async function stopAndSend() {
         break;
       }
       case 'user': {
-        userDiv.textContent = `You: ${payload.text}`;
+        userDiv.textContent = payload.text;
         exchangeEl.appendChild(userDiv);
         exchangeEl.scrollTop = exchangeEl.scrollHeight;
         break;

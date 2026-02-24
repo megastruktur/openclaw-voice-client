@@ -1,6 +1,7 @@
 mod api;
 mod audio;
 mod commands;
+mod sse;
 mod settings;
 mod types;
 

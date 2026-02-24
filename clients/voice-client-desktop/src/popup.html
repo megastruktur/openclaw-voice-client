@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenClaw Voice</title>
+    <link rel="stylesheet" href="./theme.css">
     <link rel="stylesheet" href="./popup.css">
 </head>
 <body>
@@ -18,9 +19,9 @@
             <div class="mic-container">
                 <button id="mic-button" class="mic-button" disabled>
                     <svg class="geo-rings" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                      <circle class="ring-outer" cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
-                      <polygon class="ring-hex" points="50,20 75.98,35 75.98,65 50,80 24.02,65 24.02,35" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
-                      <circle class="ring-inner" cx="50" cy="50" r="15" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+                      <circle class="ring-outer" cx="50" cy="50" r="42" fill="none" stroke="rgba(0,204,255,0.25)" stroke-width="1"/>
+                      <polygon class="ring-hex" points="50,20 75.98,35 75.98,65 50,80 24.02,65 24.02,35" fill="none" stroke="rgba(0,204,255,0.4)" stroke-width="1"/>
+                      <circle class="ring-inner" cx="50" cy="50" r="15" fill="none" stroke="rgba(0,204,255,0.7)" stroke-width="1.5"/>
                     </svg>
                 </button>
             </div>
@@ -40,6 +41,7 @@
             <button id="settings-btn">Settings</button>
             <button id="quit-btn" class="quit-button">Quit</button>
         </footer>
+        <div class="scanline-overlay"></div>
     </div>
 
     <script type="module" src="./popup.ts"></script>

@@ -1,0 +1,52 @@
+:root {
+  --nc-bg-deep: #050a18;
+  --nc-bg-base: #0A0F1F;
+  --nc-bg-panel: #0F172A;
+  --nc-bg-elevated: #162033;
+  --nc-cyan: #00CCFF;
+  --nc-cyan-dim: rgba(0, 204, 255, 0.4);
+  --nc-cyan-glow: rgba(0, 204, 255, 0.15);
+  --nc-magenta: #FF2A6D;
+  --nc-magenta-dim: rgba(255, 42, 109, 0.4);
+  --nc-text-primary: #E0E7FF;
+  --nc-text-secondary: #6B7FA3;
+  --nc-text-muted: #3B4A6B;
+  --nc-border: rgba(0, 204, 255, 0.15);
+  --nc-border-bright: rgba(0, 204, 255, 0.4);
+  --nc-font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --nc-font-body: 'JetBrains Mono', monospace;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('./fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('./fonts/JetBrainsMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+.scanline-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  animation: scanline-move 20s linear infinite;
+}
+
+@keyframes scanline-move {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanline-overlay {
+    animation: none !important;
+  }
+}

@@ -1,12 +1,26 @@
+# Dependencies
 node_modules/
+
+# Build output - Frontend
 dist/
 dist-electron/
+
+# Build output - Rust / Cargo
+**/target/
+
+# Tauri auto-generated schemas (regenerated on build)
+**/gen/schemas/
+
+# Build output - Tauri bundles
 release/
 *.AppImage
 *.dmg
 *.exe
 *.deb
 *.rpm
+*.msi
+
+# Environment
 .env
 .env.*
 *.local
@@ -19,9 +33,18 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+*.swo
+*~
 
 # Build state
 .build-state.json
 
 # Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# AI
+.serena
+.sisyphus

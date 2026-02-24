@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenClaw Voice</title>
+    <link rel="stylesheet" href="./popup.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <h1>OpenClaw Voice</h1>
+            <div id="status" class="status disconnected">Disconnected</div>
+        </header>
+
+        <main class="content">
+            <div class="mic-container">
+                <button id="mic-button" class="mic-button" disabled>
+                    <div class="mic-icon">🎤</div>
+                    <div id="mic-label" class="mic-label">Ready</div>
+                </button>
+            </div>
+
+            <div id="exchange" class="exchange">
+                <!-- Conversation history will appear here -->
+            </div>
+
+            <div id="error" class="error" style="display: none;"></div>
+
+            <div id="session-info" class="session-info">
+                Session: <span id="session-id">None</span>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <button id="new-session-btn">New Session</button>
+            <button id="settings-btn">Settings</button>
+            <button id="quit-btn" class="quit-button">Quit</button>
+        </footer>
+    </div>
+
+    <script type="module" src="./popup.ts"></script>
+</body>
+</html>

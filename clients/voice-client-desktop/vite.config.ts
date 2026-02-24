@@ -1,36 +1,22 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import electron from 'vite-plugin-electron/simple'
-import path from 'node:path'
+import { defineConfig } from "vite";
+import { resolve } from "path";
 
+// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    electron({
-      main: {
-        entry: 'src/main/index.ts',
-      },
-      preload: {
-        input: path.join(__dirname, 'src/main/preload.ts'),
-        vite: {
-          build: {
-            rollupOptions: {
-              output: {
-                entryFileNames: '[name].js',
-              },
-            },
-          },
-        },
-      },
-      renderer: {},
-    }),
-  ],
+  clearScreen: false,
+  root: "src",
+  server: {
+    port: 1420,
+    strictPort: true,
+  },
   build: {
     rollupOptions: {
       input: {
-        popup: path.resolve(__dirname, 'src/renderer/popup/index.html'),
-        settings: path.resolve(__dirname, 'src/renderer/settings/index.html'),
+        popup: resolve(__dirname, "src/popup.html"),
+        settings: resolve(__dirname, "src/settings.html"),
       },
     },
+    outDir: "../dist",
+    emptyOutDir: true,
   },
-})
+});

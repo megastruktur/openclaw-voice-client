@@ -30,7 +30,7 @@ OpenClaw Voice Client enables voice interaction with OpenClaw Gateway through a 
 │                    Desktop Application                       │
 │  ┌──────────────┐  Push-to-talk  ┌──────────────────────┐  │
 │  │ Tray Icon +  │ ──────────────> │ Audio Recording      │  │
-│  │ Popup UI     │                 │ (MediaRecorder API)  │  │
+│  │ Popup UI     │                 │ (cpal + hound, Rust) │  │
 │  └──────────────┘                 └──────────────────────┘  │
 └─────────────────────────┬───────────────────────────────────┘
                           │ HTTP POST
@@ -134,17 +134,17 @@ Download the latest release for your platform:
 👉 **[Download from Releases](https://github.com/megastruktur/openclaw-voice-client/releases)**
 
 - **macOS**: `OpenClaw-Voice-{version}.dmg`
-- **Windows**: `OpenClaw-Voice-Setup-{version}.exe`
-- **Linux**: `OpenClaw-Voice-{version}.AppImage`
+- **Windows**: `OpenClaw-Voice-{version}.msi`
 
 **Option B: Build from Source**
 
 ```bash
 cd clients/voice-client-desktop
 npm install
-npm run build
+npx tauri build
 
-# The built app will be in release/
+# The built app will be in src-tauri/target/release/bundle/
+# macOS: ~4MB .app bundle (vs ~150MB with Electron)
 ```
 
 **First Run Setup:**
@@ -314,20 +314,21 @@ openclaw plugins install .
 
 ### Desktop App
 
-The desktop app uses Electron + React + Vite:
+The desktop app uses Tauri v2 + Rust + vanilla TypeScript:
 
 ```bash
 cd clients/voice-client-desktop
 npm install
 
-# Development
-npm run dev
+# Requires Rust toolchain: https://rustup.rs/
 
-# Build for production
-npm run build
+# Development (hot reload)
+npm run tauri:dev
 
-# Build without installer (faster)
-npm run build:dir
+# Production build
+npm run tauri:build
+
+# The built app will be in src-tauri/target/release/bundle/
 ```
 
 ## Development
@@ -347,20 +348,31 @@ openclaw-voice-client/
 │       ├── stt-service.ts         # Soniox STT
 │       └── types.ts               # TypeScript types
 │
-└── clients/voice-client-desktop/  # Electron app
-    ├── src/
-    │   ├── main/                  # Electron main process
-    │   │   ├── index.ts           # App lifecycle
-    │   │   ├── tray.ts            # System tray
-    │   │   ├── ipc.ts             # IPC handlers
-    │   │   └── store.ts           # Settings storage
-    │   ├── renderer/              # React UI
-    │   │   ├── popup/             # Main popup window
-    │   │   └── settings/          # Settings window
-    │   └── shared/                # Shared code
-    │       ├── api.ts             # HTTP client
-    │       └── types.ts           # TypeScript types
-    └── assets/
+└── clients/voice-client-desktop/  # Tauri v2 app
+    ├── src/                        # Frontend (vanilla TypeScript)
+    │   ├── popup.html              # Popup window
+    │   ├── popup.ts                # Popup logic
+    │   ├── popup.css               # Popup styles
+    │   ├── settings.html           # Settings window
+    │   ├── settings.ts             # Settings logic
+    │   ├── settings.css            # Settings styles
+    │   └── types.ts                # TypeScript interfaces
+    ├── src-tauri/                   # Rust backend
+    │   ├── src/
+    │   │   ├── main.rs             # Binary entry point
+    │   │   ├── lib.rs              # App setup, tray, windows
+    │   │   ├── types.rs            # Shared types
+    │   │   ├── audio.rs            # cpal recording + hound WAV
+    │   │   ├── api.rs              # reqwest HTTP client
+    │   │   ├── settings.rs         # Store + keyring
+    │   │   └── commands.rs         # Tauri IPC commands
+    │   ├── Cargo.toml              # Rust dependencies
+    │   ├── tauri.conf.json         # Tauri configuration
+    │   ├── Entitlements.plist      # macOS entitlements
+    │   └── capabilities/           # Tauri permissions
+    ├── vite.config.ts              # Vite build config
+    ├── package.json                # Node dependencies
+    └── tsconfig.json               # TypeScript config
 ```
 
 ### Plugin Development
@@ -377,17 +389,19 @@ The plugin follows OpenClaw's plugin architecture:
 
 The app uses:
 
-- **Electron** - Desktop framework
-- **React 18** - UI framework
+- **Tauri v2** - Desktop framework (Rust backend + webview frontend)
+- **Rust** - Backend (audio, networking, settings, IPC)
+- **Vanilla TypeScript** - Frontend UI (no framework)
 - **Vite** - Build tool
-- **TypeScript** - Type safety
 
 Key components:
 
-- `useAudio.ts` - Audio recording hook (MediaRecorder API)
-- `App.tsx` - Main popup UI
-- `Settings.tsx` - Settings UI
-- `api.ts` - HTTP client for plugin endpoints
+- `audio.rs` - Native audio recording via cpal, WAV encoding via hound
+- `api.rs` - HTTP client (reqwest) for gateway communication
+- `commands.rs` - 9 Tauri IPC commands bridging frontend to Rust
+- `settings.rs` - Settings persistence (tauri-plugin-store + keyring)
+- `popup.ts` - Main popup UI logic
+- `settings.ts` - Settings UI logic
 
 ### Testing
 
@@ -405,7 +419,7 @@ curl -X POST "http://127.0.0.1:18790/voice-client/audio?sessionId=test-123" \
 **Desktop App:**
 ```bash
 # Run in dev mode with hot reload
-npm run dev
+npm run tauri:dev
 ```
 
 ## Troubleshooting
@@ -444,7 +458,7 @@ npm run dev
 - Grant microphone permissions to the app
 - Select correct device in Settings
 - Check no other app is using the microphone
-- Test recording in browser first
+
 
 **Hotkey Not Working**
 
@@ -462,10 +476,10 @@ npm run dev
 
 ### Token Storage
 
-- Desktop app uses Electron's `safeStorage` API
+- Desktop app uses the `keyring` crate for secure token storage
 - Tokens are encrypted using OS keychain:
   - **macOS**: Keychain
-  - **Windows**: DPAPI (Data Protection API)
+  - **Windows**: Windows Credential Manager
   - **Linux**: libsecret or kwallet
 
 ### Network Security
@@ -512,7 +526,7 @@ npm install
 ### Code Style
 
 - TypeScript strict mode
-- ESLint + Prettier
+- Rust (cargo clippy, no unwrap in production)
 - Conventional commits
 
 ## Roadmap
@@ -532,8 +546,10 @@ npm install
 
 - **OpenClaw** - [mariozechner/openclaw](https://github.com/mariozechner/openclaw)
 - **Soniox** - Speech-to-text API
-- **Electron** - Desktop framework
-- **React** - UI framework
+- **Tauri v2** - Desktop framework
+- **Rust** - Backend language
+- **cpal** - Cross-platform audio
+- **hound** - WAV encoding
 
 ## License
 

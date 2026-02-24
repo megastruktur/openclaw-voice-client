@@ -1,0 +1,36 @@
+{
+  "productName": "OpenClaw Voice",
+  "identifier": "com.openclaw.voice-client",
+  "version": "1.0.0",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [],
+    "trayIcon": {
+      "iconPath": "icons/tray-icon.png",
+      "tooltip": "OpenClaw Voice Client"
+    },
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://* https://*; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "entitlements": "Entitlements.plist",
+      "minimumSystemVersion": "10.15"
+    }
+  }
+}

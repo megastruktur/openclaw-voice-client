@@ -80,3 +80,12 @@ pub struct ConnectionResult {
 pub struct CreateSessionRequest {
     pub profile_name: String,
 }
+
+/// SSE event types from voice-client plugin
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum VoiceEvent {
+    User { text: String, confidence: f64, timestamp: String },
+    Openclaw { text: String, done: bool, timestamp: String },
+    System { status: String, message: Option<String>, timestamp: String },
+}

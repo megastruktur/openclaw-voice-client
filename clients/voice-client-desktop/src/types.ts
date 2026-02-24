@@ -37,3 +37,33 @@ export interface ConnectionResult {
   success: boolean;
   error?: string;
 }
+
+/** SSE event types streamed from POST /audio */
+export type VoiceEventType = "user" | "openclaw" | "system";
+
+export interface VoiceEventBase {
+  type: VoiceEventType;
+  timestamp: string;
+}
+
+export interface UserEvent extends VoiceEventBase {
+  type: "user";
+  text: string;
+  confidence: number;
+}
+
+export interface OpenClawEvent extends VoiceEventBase {
+  type: "openclaw";
+  text: string;
+  done: boolean;
+}
+
+export type SystemStatus = "transcribing" | "typing" | "done" | "error" | "empty_transcription" | "timeout" | "aborted";
+
+export interface SystemEvent extends VoiceEventBase {
+  type: "system";
+  status: SystemStatus;
+  message?: string;
+}
+
+export type VoiceEvent = UserEvent | OpenClawEvent | SystemEvent;

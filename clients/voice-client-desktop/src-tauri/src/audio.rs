@@ -17,6 +17,11 @@ pub struct AudioState {
     pub sample_rate: Arc<Mutex<Option<u32>>>,
 }
 
+// SAFETY: cpal::Stream is not Send on macOS (CoreAudio handles are thread-affine),
+// but AudioState wraps it in Arc<Mutex<Option<Stream>>> so all access is serialized.
+// The stream is only accessed from Tauri command handlers (one at a time) and the
+// audio callback (which only pushes samples, never touches the stream handle).
+// This is the standard pattern for cpal + Tauri state management.
 unsafe impl Send for AudioState {}
 unsafe impl Sync for AudioState {}
 

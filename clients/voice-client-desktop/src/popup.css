@@ -16,11 +16,10 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: linear-gradient(135deg, var(--nc-bg-deep) 0%, var(--nc-bg-base) 100%);
-  background-image: 
-    linear-gradient(135deg, var(--nc-bg-deep) 0%, var(--nc-bg-base) 100%),
+  background-image:
     repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,204,255,0.03) 39px, rgba(0,204,255,0.03) 40px),
-    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,204,255,0.03) 39px, rgba(0,204,255,0.03) 40px);
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,204,255,0.03) 39px, rgba(0,204,255,0.03) 40px),
+    linear-gradient(135deg, var(--nc-bg-deep) 0%, var(--nc-bg-base) 100%);
   position: relative;
 }
 
@@ -178,6 +177,7 @@ html, body {
 
 .mic-button.recording {
   border-color: var(--nc-cyan);
+  animation: none;
 }
 
 .mic-button.recording::before {

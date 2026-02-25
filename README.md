@@ -487,13 +487,6 @@ npm run tauri:dev
   - **Windows**: Windows Credential Manager
   - **Linux**: libsecret or kwallet
 
-### Network Security
-
-- **Default**: Local HTTP (LAN only)
-- **Recommended for WAN**: Use HTTPS with reverse proxy
-- **Profile Validation**: Server-side allowlist
-- **Session Management**: Server-side only
-
 ### Best Practices
 
 1. **Never commit API keys** to version control
@@ -501,16 +494,6 @@ npm run tauri:dev
 3. **Enable HTTPS** for WAN access
 4. **Restrict profiles** to known users
 5. **Monitor logs** for unauthorized access
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ### Development Setup
 
@@ -549,7 +532,7 @@ npm install
 
 ## Credits
 
-- **OpenClaw** - [mariozechner/openclaw](https://github.com/mariozechner/openclaw)
+- **OpenClaw**
 - **Soniox** - Speech-to-text API
 - **Tauri v2** - Desktop framework
 - **Rust** - Backend language
@@ -561,12 +544,6 @@ npm install
 MIT License - see [LICENSE](LICENSE) file for details.
 
 Copyright (c) 2026 OpenClaw Voice Client Contributors
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/megastruktur/openclaw-voice-client/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/megastruktur/openclaw-voice-client/discussions)
-- **OpenClaw**: [OpenClaw Documentation](https://github.com/mariozechner/openclaw)
 
 ---
 

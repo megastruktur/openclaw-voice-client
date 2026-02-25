@@ -103,7 +103,7 @@ export interface OpenClawEvent extends VoiceEventBase {
   done: boolean;
 }
 
-export type SystemStatus = "transcribing" | "typing" | "done" | "error" | "empty_transcription" | "timeout" | "aborted";
+export type SystemStatus = "transcribing" | "typing" | "done" | "error" | "empty_transcription" | "timeout" | "aborted" | "resumed";
 
 export interface SystemEvent extends VoiceEventBase {
   type: "system";

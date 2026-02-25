@@ -12,7 +12,7 @@ import http from "node:http";
 import { URL } from "node:url";
 import type { VoiceClientConfig, SessionResponse, VoiceEvent } from "./types.js";
 import { transcribeAudio } from "./stt-service.js";
-import { createSession, getSession, addMessage, getSessionMessages } from "./session-manager.js";
+import { createSession, getSession, getOrResumeSession, addMessage, getSessionMessages, isSessionPaused } from "./session-manager.js";
 import { generateAgentResponseStreaming } from "./agent-service.js";
 import { writeSSEHeaders, sendSSE, endSSE } from "./sse.js";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
@@ -151,7 +151,7 @@ export class VoiceClientHttpServer {
         return;
       }
 
-      const session = getSession(sessionId);
+      const session = getOrResumeSession(sessionId);
       if (!session) {
         res.statusCode = 404;
         res.setHeader("Content-Type", "application/json");
@@ -333,6 +333,7 @@ export class VoiceClientHttpServer {
         createdAt: session.createdAt.toISOString(),
         lastActivity: session.lastActivity.toISOString(),
         messageCount: session.messages.length,
+        paused: isSessionPaused(sessionId),
       })
     );
   }
